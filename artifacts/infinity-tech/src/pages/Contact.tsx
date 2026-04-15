@@ -1,0 +1,715 @@
+import { useState, useRef, useEffect } from "react";
+import intlTelInput from "intl-tel-input";
+import "intl-tel-input/dist/css/intlTelInput.css";
+import { SEO } from "@/components/SEO";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { MapPin, Send } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { submitContactForm } from "@/hooks/use-projects";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+// ── Form schema (phone validated separately via ITI) ──────────────────────────
+const formSchema = z.object({
+  name:    z.string().min(2, "Name is too short"),
+  subject: z.string().min(5, "Subject is required"),
+  message: z.string().min(10, "Message must be at least 10 characters"),
+});
+type FormValues = z.infer<typeof formSchema>;
+
+
+// ── CSS-only fade-in ─────────────────────────────────────────────────────────
+function useFadeIn(threshold = 0.05) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [vis, setVis] = useState(false);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); } },
+      { threshold },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return { ref, vis };
+}
+
+function Reveal({ children, delay = 0, className = "" }: {
+  children: React.ReactNode; delay?: number; className?: string;
+}) {
+  const { ref, vis } = useFadeIn();
+  return (
+    <div ref={ref} className={className} style={{
+      opacity: vis ? 1 : 0,
+      transform: vis ? "translateY(0)" : "translateY(14px)",
+      transition: `opacity 0.48s ease ${delay}ms, transform 0.48s ease ${delay}ms`,
+      willChange: "transform, opacity",
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ── Social links data ─────────────────────────────────────────────────────────
+const SOCIALS = [
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    sub: "/in/fares-salah-eng",
+    href: "https://linkedin.com/in/fares-salah-eng",
+    color: "#0A66C2",
+    glow: "0 0 0 1px rgba(10,102,194,0.45), 0 0 24px rgba(10,102,194,0.2)",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true">
+        <path d="M20.447 20.452H16.89v-5.569c0-1.328-.024-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a1.974 1.974 0 1 1 0-3.948 1.974 1.974 0 0 1 0 3.948zm1.707 13.019H3.63V9h3.414v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "github",
+    label: "GitHub",
+    sub: "/infinitytech-dev",
+    href: "https://github.com/infinitytech-dev",
+    color: "#e6edf3",
+    glow: "0 0 0 1px rgba(230,237,243,0.3), 0 0 24px rgba(230,237,243,0.1)",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true">
+        <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "twitter",
+    label: "X (Twitter)",
+    sub: "@InfinityTech_",
+    href: "https://x.com/InfinityTech_",
+    color: "#e7e9ea",
+    glow: "0 0 0 1px rgba(231,233,234,0.25), 0 0 24px rgba(231,233,234,0.1)",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "email",
+    label: "Email",
+    sub: "admin.infinity.tech@gmail.com",
+    href: "mailto:admin.infinity.tech@gmail.com",
+    color: "hsl(188 86% 53%)",
+    glow: "0 0 0 1px rgba(34,211,238,0.4), 0 0 24px rgba(34,211,238,0.15)",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="22" height="22" aria-hidden="true">
+        <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+    ),
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    sub: "+20 100 000 0000",
+    href: "https://wa.me/201000000000",
+    color: "#25D366",
+    glow: "0 0 0 1px rgba(37,211,102,0.4), 0 0 24px rgba(37,211,102,0.15)",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+    ),
+  },
+];
+
+// ── Social card ───────────────────────────────────────────────────────────────
+function SocialCard({ s }: { s: typeof SOCIALS[0] }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <a
+      href={s.href}
+      target={s.id !== "email" ? "_blank" : undefined}
+      rel="noopener noreferrer"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: "14px",
+        padding: "14px 18px", borderRadius: "14px",
+        background: hovered ? "rgba(255,255,255,0.04)" : "rgba(10,15,24,0.6)",
+        backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+        border: `1px solid ${hovered ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)"}`,
+        boxShadow: hovered ? s.glow : "none",
+        color: hovered ? s.color : "rgba(255,255,255,0.45)",
+        textDecoration: "none",
+        transition: "background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, color 0.22s ease",
+        willChange: "transform",
+      }}
+    >
+      <span style={{ flexShrink: 0 }}>{s.icon}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{
+          display: "block", fontSize: "13px", fontWeight: 600, lineHeight: 1.3,
+          color: hovered ? s.color : "rgba(255,255,255,0.75)",
+          transition: "color 0.22s ease",
+        }}>
+          {s.label}
+        </span>
+        <span style={{
+          display: "block", fontSize: "11px", color: "rgba(255,255,255,0.3)",
+          marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {s.sub}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+// ── Shared field wrapper ──────────────────────────────────────────────────────
+function Field({ label, error, children }: {
+  label: string; error?: string; children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label style={{
+        display: "block", fontSize: "11px", fontWeight: 600,
+        letterSpacing: "0.1em", textTransform: "uppercase",
+        color: "rgba(255,255,255,0.35)", marginBottom: "10px",
+      }}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <p style={{ fontSize: "11px", color: "hsl(0 84% 60%)", marginTop: "5px" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const inputBase: React.CSSProperties = {
+  width: "100%", background: "transparent", border: "none",
+  borderBottom: "1px solid rgba(255,255,255,0.12)",
+  padding: "10px 0", fontSize: "14px",
+  color: "rgba(255,255,255,0.85)", outline: "none",
+  transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+  fontFamily: "inherit",
+};
+
+function SlimInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      {...props}
+      style={{
+        ...inputBase,
+        borderBottomColor: focused ? "hsl(188 86% 53%)" : "rgba(255,255,255,0.12)",
+        boxShadow: focused ? "0 1px 0 hsl(188 86% 53%)" : "none",
+        caretColor: "hsl(188 86% 53%)",
+      }}
+      onFocus={e => { setFocused(true); props.onFocus?.(e); }}
+      onBlur={e => { setFocused(false); props.onBlur?.(e); }}
+    />
+  );
+}
+
+function SlimTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <textarea
+      {...props}
+      style={{
+        ...inputBase, resize: "none", minHeight: "100px", display: "block",
+        borderBottomColor: focused ? "hsl(188 86% 53%)" : "rgba(255,255,255,0.12)",
+        boxShadow: focused ? "0 1px 0 hsl(188 86% 53%)" : "none",
+        caretColor: "hsl(188 86% 53%)",
+      }}
+      onFocus={e => { setFocused(true); props.onFocus?.(e); }}
+      onBlur={e => { setFocused(false); props.onBlur?.(e); }}
+    />
+  );
+}
+
+// ── intl-tel-input phone field ────────────────────────────────────────────────
+interface ItiPhoneFieldProps {
+  label: string;
+  error?: string;
+  onItiReady: (iti: ReturnType<typeof intlTelInput>) => void;
+  onClearError: () => void;
+}
+
+function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneFieldProps) {
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const itiRef    = useRef<ReturnType<typeof intlTelInput> | null>(null);
+  const [focused,    setFocused]    = useState(false);
+  // "idle" = empty, "valid" = passes isValidNumber(), "invalid" = fails
+  const [validState, setValidState] = useState<"idle" | "valid" | "invalid">("idle");
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+
+    const iti = intlTelInput(el, {
+      initialCountry: "auto",
+      geoIpLookup: (cb) => {
+        fetch("https://ipapi.co/json")
+          .then(r => r.json())
+          .then(d => cb(d.country_code || "EG"))
+          .catch(() => cb("EG"));
+      },
+      separateDialCode: true,
+      countryOrder: ["eg", "sa", "ae", "kw", "gb", "us"],
+      loadUtils: () => import("intl-tel-input/dist/js/utils.js"),
+    });
+
+    itiRef.current = iti;
+    onItiReady(iti);
+
+    // Real-time validity check on each keystroke / country switch
+    const checkValidity = () => {
+      onClearError();
+      const raw = el.value.trim();
+      if (!raw) { setValidState("idle"); return; }
+      setValidState(iti.isValidNumber() === true ? "valid" : "invalid");
+    };
+
+    el.addEventListener("input", checkValidity);
+    el.addEventListener("countrychange", checkValidity);
+
+    return () => {
+      el.removeEventListener("input", checkValidity);
+      el.removeEventListener("countrychange", checkValidity);
+      iti.destroy();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Border / shadow: parent error > real-time valid state > focused > idle
+  const borderColor = error
+    ? "hsl(0 84% 60%)"
+    : validState === "valid"
+    ? "#22c55e"
+    : validState === "invalid"
+    ? "hsl(0 84% 60%)"
+    : focused
+    ? "hsl(188 86% 53%)"
+    : "rgba(255,255,255,0.12)";
+
+  const shadowColor = error
+    ? "0 1px 0 hsl(0 84% 60%)"
+    : validState === "valid"
+    ? "0 1px 0 #22c55e"
+    : validState === "invalid"
+    ? "0 1px 0 hsl(0 84% 60%)"
+    : focused
+    ? "0 1px 0 hsl(188 86% 53%)"
+    : "none";
+
+  return (
+    <div>
+      <label style={{
+        display: "block", fontSize: "11px", fontWeight: 600,
+        letterSpacing: "0.1em", textTransform: "uppercase",
+        color: "rgba(255,255,255,0.35)", marginBottom: "10px",
+      }}>
+        {label}
+      </label>
+
+      {/* Bottom-border wrapper — no `required`, no browser-native validation */}
+      <div style={{
+        borderBottom: `1px solid ${borderColor}`,
+        boxShadow: shadowColor,
+        transition: "border-color 0.22s ease, box-shadow 0.22s ease",
+        paddingBottom: "2px",
+      }}>
+        <input
+          ref={inputRef}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          style={{
+            width: "100%", background: "transparent", border: "none",
+            padding: "10px 0", fontSize: "14px",
+            color: "rgba(255,255,255,0.85)", outline: "none",
+            caretColor: "hsl(188 86% 53%)", fontFamily: "inherit",
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+      </div>
+
+      {/* Validity hint shown in real-time */}
+      {validState === "valid" && !error && (
+        <p style={{ fontSize: "11px", color: "#22c55e", marginTop: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          رقم صحيح ✓
+        </p>
+      )}
+
+      {(error || (validState === "invalid" && !error)) && (
+        <p style={{ fontSize: "11px", color: "hsl(0 84% 60%)", marginTop: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {error || "يرجى التأكد من عدد أرقام الهاتف بشكل صحيح"}
+        </p>
+      )}
+
+      {/* ── Dark-theme CSS overrides for intl-tel-input ── */}
+      <style>{`
+        /* Wrapper */
+        .iti { width: 100%; }
+
+        /* Flag-selector button */
+        .iti__flag-container { padding: 0; }
+        .iti__selected-flag {
+          background: transparent !important;
+          border: none !important;
+          border-radius: 0 !important;
+          padding: 10px 10px 10px 0 !important;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .iti__selected-flag:hover,
+        .iti__selected-flag:focus {
+          background: rgba(34,211,238,0.06) !important;
+          outline: none !important;
+        }
+        .iti__selected-dial-code {
+          color: rgba(255,255,255,0.5) !important;
+          font-size: 13px !important;
+          font-family: inherit !important;
+        }
+        .iti__arrow {
+          border-top-color: rgba(255,255,255,0.3) !important;
+          border-bottom-color: rgba(255,255,255,0.3) !important;
+          margin-left: 4px !important;
+        }
+        .iti__arrow--up { border-bottom-color: hsl(188 86% 53%) !important; }
+
+        /* Phone input itself */
+        .iti input[type=tel], .iti input[type=text] {
+          background: transparent !important;
+          color: rgba(255,255,255,0.85) !important;
+          border: none !important;
+          outline: none !important;
+          caret-color: hsl(188 86% 53%);
+        }
+        .iti input[type=tel]::placeholder {
+          color: rgba(255,255,255,0.2) !important;
+        }
+
+        /* Dropdown */
+        .iti__country-list {
+          background: rgba(10,18,34,0.97) !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          border: 1px solid rgba(34,211,238,0.15) !important;
+          border-radius: 12px !important;
+          box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(34,211,238,0.08) !important;
+          padding: 6px 0 !important;
+          max-height: 260px !important;
+          overflow-y: auto !important;
+          scrollbar-width: thin !important;
+          scrollbar-color: rgba(34,211,238,0.2) transparent !important;
+          margin-top: 4px !important;
+          z-index: 9999 !important;
+        }
+        .iti__country-list::-webkit-scrollbar { width: 4px; }
+        .iti__country-list::-webkit-scrollbar-track { background: transparent; }
+        .iti__country-list::-webkit-scrollbar-thumb {
+          background: rgba(34,211,238,0.25); border-radius: 4px;
+        }
+
+        /* Search box */
+        .iti__search-input {
+          background: rgba(255,255,255,0.04) !important;
+          border: none !important;
+          border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+          border-radius: 0 !important;
+          color: rgba(255,255,255,0.8) !important;
+          font-size: 13px !important;
+          padding: 10px 14px !important;
+          width: 100% !important;
+          outline: none !important;
+          font-family: inherit !important;
+        }
+        .iti__search-input::placeholder { color: rgba(255,255,255,0.25) !important; }
+        .iti__search-input:focus { border-bottom-color: rgba(34,211,238,0.35) !important; }
+
+        /* Country items */
+        .iti__country {
+          padding: 9px 14px !important;
+          color: rgba(255,255,255,0.65) !important;
+          font-size: 13px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 10px !important;
+          cursor: pointer !important;
+          transition: background 0.12s ease !important;
+        }
+        .iti__country:hover { background: rgba(34,211,238,0.08) !important; color: #fff !important; }
+        .iti__country.iti__highlight {
+          background: rgba(34,211,238,0.12) !important;
+          color: #fff !important;
+        }
+        .iti__country-name { color: inherit !important; }
+        .iti__dial-code { color: rgba(255,255,255,0.35) !important; font-size: 12px !important; }
+
+        /* Divider between preferred + all countries */
+        .iti__divider {
+          border-color: rgba(255,255,255,0.06) !important;
+          margin: 4px 0 !important;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export function Contact() {
+  const { toast } = useToast();
+  const [phoneError, setPhoneError] = useState("");
+  const [isSending,  setIsSending]  = useState(false);
+  const { t, isRTL } = useLanguage();
+  const itiRef = useRef<ReturnType<typeof intlTelInput> | null>(null);
+  const handleItiReady = (iti: ReturnType<typeof intlTelInput>) => { itiRef.current = iti; };
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { name: "", subject: "", message: "" },
+  });
+
+  const onSubmit = async (data: FormValues) => {
+    const iti = itiRef.current;
+    // ── Single validity gate: isValidNumber() is the only condition ──────────
+    if (!iti?.isValidNumber()) {
+      setPhoneError(
+        t("Please enter a valid phone number with a complete number of digits",
+          "يرجى إدخال رقم هاتف صحيح بعدد أرقام مكتمل"),
+      );
+      return;
+    }
+
+    setPhoneError("");
+
+    // ── Capture full international format via getNumber() ─────────────────────
+    const finalPhoneNumber = iti.getNumber();
+    console.log("Sending to DB:", finalPhoneNumber);
+
+    // ── Send to API → DB (isSending gates the button) ────────────────────────
+    setIsSending(true);
+    try {
+      await submitContactForm({ ...data, phone: finalPhoneNumber } as any);
+      toast({
+        title: t("Message Sent", "تم إرسال الرسالة"),
+        description: t(
+          "Thanks for reaching out! I'll get back to you soon.",
+          "شكرًا لتواصلك! سأرد عليك في أقرب وقت.",
+        ),
+      });
+      form.reset();
+      if (iti?.telInput) iti.telInput.value = "";
+    } catch {
+      toast({
+        variant: "destructive",
+        title: t("Error", "خطأ"),
+        description: t("Something went wrong. Please try again.", "حدث خطأ ما. يرجى المحاولة مرة أخرى."),
+      });
+    } finally {
+      setIsSending(false); // always runs — button is never permanently disabled
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full relative" dir={isRTL ? "rtl" : "ltr"}>
+      <SEO
+        title={t("Contact", "التواصل")}
+        description={t(
+          "Get in touch with Fares Salah for hardware engineering consulting, PCB design projects, or technical collaboration.",
+          "تواصل مع فارس صلاح للاستشارات الهندسية، مشاريع تصميم PCB، أو فرص التعاون التقني.",
+        )}
+        keywords="contact hardware engineer, PCB design consulting, embedded systems"
+      />
+
+      <div
+        className="absolute inset-0 z-0 pointer-events-none"
+        style={{ background: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(34,211,238,0.055) 0%, transparent 68%)" }}
+      />
+
+      <div className="h-[4.5rem]" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-20">
+
+        {/* ── Header ───────────────────────────────────────────────────────── */}
+        <Reveal className="mb-14 sm:mb-18" delay={0}>
+          <p
+            className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] mb-4"
+            style={{ color: "hsl(188 86% 53%)" }}
+          >
+            <span className="w-5 h-px" style={{ background: "hsl(188 86% 53%)" }} />
+            {t("Get in Touch", "تواصل معي")}
+          </p>
+          <h1
+            className="font-black text-white tracking-tight"
+            style={{ fontSize: "clamp(2rem, 5vw + 0.5rem, 3.5rem)", lineHeight: 1.08, letterSpacing: "-0.03em" }}
+          >
+            {t(
+              <>Initialize <span style={{ color: "hsl(188 86% 53%)" }}>Connection</span></>,
+              <>ابدأ <span style={{ color: "hsl(188 86% 53%)" }}>التواصل</span></>,
+            )}
+          </h1>
+          <p
+            className="mt-4 text-base leading-relaxed max-w-xl"
+            style={{ color: "rgba(255,255,255,0.45)", fontSize: "clamp(0.875rem, 1.5vw + 0.25rem, 1.0625rem)" }}
+          >
+            {t(
+              "Whether you have a project, an open role, or just want to talk tech — drop a message.",
+              "سواء كان لديك مشروع، أو دور مفتوح، أو تريد الحديث عن التقنية — أرسل رسالة.",
+            )}
+          </p>
+        </Reveal>
+
+        {/* ── Two-column grid ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_clamp(300px,36%,440px)] gap-10 xl:gap-16 items-start">
+
+          {/* ── Left: Form ───────────────────────────────────────────────── */}
+          <Reveal delay={80}>
+            <div style={{
+              background: "rgba(10,15,24,0.6)", backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: "20px", padding: "clamp(24px, 4vw, 44px)",
+            }}>
+              <p style={{
+                fontSize: "11px", fontWeight: 700, letterSpacing: "0.18em",
+                textTransform: "uppercase", color: "rgba(255,255,255,0.3)", marginBottom: "28px",
+              }}>
+                {t("Send a Message", "أرسل رسالة")}
+              </p>
+
+              <form onSubmit={form.handleSubmit(onSubmit)} noValidate style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
+                  <Field label={t("Name", "الاسم")} error={form.formState.errors.name?.message}>
+                    <SlimInput
+                      {...form.register("name")}
+                      dir="ltr"
+                      placeholder={t("John Doe", "محمد أحمد")}
+                    />
+                  </Field>
+
+                  {/* intl-tel-input phone field */}
+                  <ItiPhoneField
+                    label={t("WhatsApp Number", "رقم الواتساب")}
+                    error={phoneError}
+                    onItiReady={handleItiReady}
+                    onClearError={() => setPhoneError("")}
+                  />
+                </div>
+
+                <Field label={t("Subject", "الموضوع")} error={form.formState.errors.subject?.message}>
+                  <SlimInput
+                    {...form.register("subject")}
+                    dir="ltr"
+                    placeholder={t("Project Inquiry", "الاستفسار عن مشروع")}
+                  />
+                </Field>
+
+                <Field label={t("Message", "الرسالة")} error={form.formState.errors.message?.message}>
+                  <SlimTextarea
+                    {...form.register("message")}
+                    dir="ltr"
+                    rows={5}
+                    placeholder={t("How can we build the future together?", "كيف يمكننا بناء المستقبل معاً؟")}
+                  />
+                </Field>
+
+                <div>
+                  <button
+                    type="submit"
+                    disabled={isSending}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "8px",
+                      padding: "13px 32px", background: "hsl(188 86% 53%)", color: "#0a0f18",
+                      fontWeight: 700, fontSize: "14px", borderRadius: "12px", border: "none",
+                      cursor: isSending ? "not-allowed" : "pointer",
+                      opacity: isSending ? 0.6 : 1,
+                      transition: "background 0.2s ease, box-shadow 0.25s ease",
+                      willChange: "transform",
+                    }}
+                    onMouseEnter={e => {
+                      if (isSending) return;
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = "hsl(188 86% 46%)";
+                      el.style.boxShadow = "0 0 28px rgba(34,211,238,0.4)";
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = "hsl(188 86% 53%)";
+                      el.style.boxShadow = "none";
+                    }}
+                  >
+                    {isSending ? (
+                      <>
+                        <div style={{
+                          width: 15, height: 15, borderRadius: "50%",
+                          border: "2px solid #0a0f18", borderTopColor: "transparent",
+                          animation: "spin 0.7s linear infinite", flexShrink: 0,
+                        }} />
+                        {t("Sending…", "جاري الإرسال...")}
+                      </>
+                    ) : (
+                      <>
+                        {t("Send Message", "إرسال الرسالة")}
+                        <Send style={{ width: 15, height: 15 }} />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </Reveal>
+
+          {/* ── Right: Social + Location ─────────────────────────────────── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+
+            <Reveal delay={160}>
+              <p style={{
+                fontSize: "11px", fontWeight: 700, letterSpacing: "0.18em",
+                textTransform: "uppercase", color: "rgba(255,255,255,0.3)", marginBottom: "14px",
+              }}>
+                {t("Connect with me", "تواصل معي")}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {SOCIALS.map((s) => <SocialCard key={s.id} s={s} />)}
+              </div>
+            </Reveal>
+
+            <Reveal delay={240}>
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: "14px",
+                padding: "16px 18px", borderRadius: "14px",
+                background: "rgba(10,15,24,0.5)", border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <MapPin style={{ width: 18, height: 18, flexShrink: 0, marginTop: 2, color: "hsl(188 86% 53% / 0.7)" }} />
+                <div>
+                  <p style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>
+                    {t("Alexandria, Egypt", "الإسكندرية، مصر")}
+                  </p>
+                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: "3px" }}>
+                    {t("Open to Remote", "متاح للعمل عن بعد")}
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+
+        </div>
+      </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
