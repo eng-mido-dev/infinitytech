@@ -369,9 +369,34 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         </p>
       )}
 
-      {/* ── Dark-theme CSS overrides for intl-tel-input ── */}
+      {/* ── Dark-theme CSS overrides for intl-tel-input + global input hard reset ── */}
       <style>{`
-        /* ── Autofill dark override — nuke any browser-injected background ── */
+        /* ════════════════════════════════════════════════════════════════
+           GLOBAL INPUT HARD RESET
+           Covers every state: normal, hover, focus, active, typing.
+           Background NEVER changes — only border-color is allowed to.
+        ════════════════════════════════════════════════════════════════ */
+        .contact-dark-input,
+        .contact-dark-input:hover,
+        .contact-dark-input:focus,
+        .contact-dark-input:active,
+        .contact-dark-input:focus-visible {
+          background: transparent !important;
+          background-color: transparent !important;
+          box-shadow: none;
+        }
+
+        /* ── Autofill hard reset ─────────────────────────────────────────
+           -webkit-background-clip: text  → clips the autofill fill to text
+           area only, making the injected background invisible.
+           -webkit-box-shadow inset       → paints over any remaining bg.
+           transition 9999s               → freezes the fade-in animation
+           so the yellow/white flash never renders.
+        ─────────────────────────────────────────────────────────────── */
+        .contact-dark-input:-webkit-autofill,
+        .contact-dark-input:-webkit-autofill:hover,
+        .contact-dark-input:-webkit-autofill:focus,
+        .contact-dark-input:-webkit-autofill:active,
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus,
@@ -379,20 +404,20 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         textarea:-webkit-autofill,
         textarea:-webkit-autofill:hover,
         textarea:-webkit-autofill:focus,
-        textarea:-webkit-autofill:active,
-        .contact-dark-input:-webkit-autofill,
-        .contact-dark-input:-webkit-autofill:hover,
-        .contact-dark-input:-webkit-autofill:focus,
-        .contact-dark-input:-webkit-autofill:active {
-          -webkit-box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
+        textarea:-webkit-autofill:active {
+          -webkit-background-clip: text !important;
+          background-clip: text !important;
           -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
-          caret-color: hsl(188 86% 53%) !important;
+          -webkit-box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
+          box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
           background-color: #0a0f18 !important;
-          color: rgba(255,255,255,0.85) !important;
+          caret-color: hsl(188 86% 53%) !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
-        /* ── ITI wrapper ── */
+        /* ════════════════════════════════════════════════════════════════
+           ITI WRAPPER
+        ════════════════════════════════════════════════════════════════ */
         .iti { width: 100%; }
 
         /* ── Flag selector button ── */
@@ -436,32 +461,44 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti input[type=tel],
         .iti input[type=text] {
           background: transparent !important;
+          background-color: transparent !important;
           color: rgba(255,255,255,0.85) !important;
           border: none !important;
           outline: none !important;
           caret-color: hsl(188 86% 53%) !important;
+        }
+        .iti input[type=tel]:focus,
+        .iti input[type=text]:focus {
+          background: transparent !important;
+          background-color: transparent !important;
         }
         .iti input[type=tel]::placeholder {
           color: rgba(255,255,255,0.2) !important;
         }
         .iti input[type=tel]:-webkit-autofill,
         .iti input[type=tel]:-webkit-autofill:hover,
-        .iti input[type=tel]:-webkit-autofill:focus {
-          -webkit-box-shadow: 0 0 0px 1000px rgba(10, 15, 24, 0.95) inset !important;
+        .iti input[type=tel]:-webkit-autofill:focus,
+        .iti input[type=tel]:-webkit-autofill:active {
+          -webkit-background-clip: text !important;
+          background-clip: text !important;
           -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+          -webkit-box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
+          transition: background-color 9999s ease-in-out 0s !important;
         }
 
-        /* ── Dropdown container — premium glassmorphism ── */
+        /* ════════════════════════════════════════════════════════════════
+           DROPDOWN — PREMIUM GLASSMORPHISM
+        ════════════════════════════════════════════════════════════════ */
         .iti__country-list {
-          background: rgba(8, 14, 26, 0.92) !important;
-          backdrop-filter: blur(24px) saturate(160%) !important;
-          -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+          background: rgba(8, 14, 26, 0.94) !important;
+          backdrop-filter: blur(28px) saturate(180%) !important;
+          -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
           border: 1px solid rgba(34,211,238,0.14) !important;
           border-radius: 14px !important;
           box-shadow:
-            0 24px 64px rgba(0,0,0,0.7),
+            0 28px 72px rgba(0,0,0,0.75),
             0 0 0 1px rgba(255,255,255,0.04),
-            inset 0 1px 0 rgba(255,255,255,0.05) !important;
+            inset 0 1px 0 rgba(255,255,255,0.06) !important;
           padding: 8px 0 !important;
           max-height: 270px !important;
           overflow-y: auto !important;
@@ -477,9 +514,10 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           border-radius: 4px;
         }
 
-        /* ── Search box — dark themed ── */
+        /* ── Search box — fully dark, no browser override ── */
         .iti__search-input {
-          background: rgba(255,255,255,0.03) !important;
+          background: rgba(255,255,255,0.025) !important;
+          background-color: rgba(255,255,255,0.025) !important;
           border: none !important;
           border-bottom: 1px solid rgba(255,255,255,0.07) !important;
           border-radius: 0 !important;
@@ -490,23 +528,24 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           outline: none !important;
           font-family: inherit !important;
           box-sizing: border-box !important;
-          transition: border-color 0.18s ease !important;
+          transition: border-color 0.18s ease, background 0.18s ease !important;
         }
         .iti__search-input::placeholder {
           color: rgba(255,255,255,0.22) !important;
         }
         .iti__search-input:focus {
           border-bottom-color: rgba(34,211,238,0.32) !important;
-          background: rgba(34,211,238,0.03) !important;
+          background: rgba(34,211,238,0.04) !important;
+          background-color: rgba(34,211,238,0.04) !important;
         }
-        /* Kill browser autofill white bg inside search */
         .iti__search-input:-webkit-autofill,
         .iti__search-input:-webkit-autofill:hover,
         .iti__search-input:-webkit-autofill:focus,
         .iti__search-input:-webkit-autofill:active {
-          -webkit-box-shadow: 0 0 0px 1000px #080e1a inset !important;
+          -webkit-background-clip: text !important;
+          background-clip: text !important;
           -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
-          background-color: #080e1a !important;
+          -webkit-box-shadow: 0 0 0px 1000px #080e1a inset !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
