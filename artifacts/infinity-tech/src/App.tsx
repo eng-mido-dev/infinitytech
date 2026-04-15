@@ -35,6 +35,15 @@ const queryClient = new QueryClient({
   }
 });
 
+// Scrolls to the top instantly on every route change
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location]);
+  return null;
+}
+
 // Minimal skeleton that doesn't cause CLS — same bg, no layout impact
 function PageFallback() {
   return (
@@ -110,22 +119,29 @@ function AppContent() {
 
   if (isAdminInfinity) {
     return (
-      <Suspense fallback={<PageFallback />}>
-        <AdminInfinity />
-      </Suspense>
+      <>
+        <ScrollToTop />
+        <Suspense fallback={<PageFallback />}>
+          <AdminInfinity />
+        </Suspense>
+      </>
     );
   }
 
   if (isAdmin) {
     return (
-      <Suspense fallback={<PageFallback />}>
-        <AdminSection />
-      </Suspense>
+      <>
+        <ScrollToTop />
+        <Suspense fallback={<PageFallback />}>
+          <AdminSection />
+        </Suspense>
+      </>
     );
   }
 
   return (
     <div className="flex flex-col min-h-screen overflow-x-hidden">
+      <ScrollToTop />
       <Navbar />
       <PublicRoutes />
       <Footer />
