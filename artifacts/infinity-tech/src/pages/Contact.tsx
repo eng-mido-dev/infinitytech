@@ -199,6 +199,8 @@ function SlimInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const [focused, setFocused] = useState(false);
   return (
     <input
+      autoComplete="one-time-code"
+      spellCheck={false}
       {...props}
       className={`contact-dark-input${props.className ? ` ${props.className}` : ""}`}
       style={{
@@ -218,6 +220,8 @@ function SlimTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
   const [focused, setFocused] = useState(false);
   return (
     <textarea
+      autoComplete="off"
+      spellCheck={false}
       {...props}
       className={`contact-dark-input${props.className ? ` ${props.className}` : ""}`}
       style={{
@@ -333,7 +337,8 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           ref={inputRef}
           type="tel"
           inputMode="tel"
-          autoComplete="tel"
+          autoComplete="one-time-code"
+          spellCheck={false}
           className="contact-dark-input"
           style={{
             width: "100%", background: "transparent", border: "none",
@@ -366,15 +371,25 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
 
       {/* ── Dark-theme CSS overrides for intl-tel-input ── */}
       <style>{`
-        /* ── Autofill dark override (all contact form inputs) ── */
+        /* ── Autofill dark override — nuke any browser-injected background ── */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active,
+        textarea:-webkit-autofill,
+        textarea:-webkit-autofill:hover,
+        textarea:-webkit-autofill:focus,
+        textarea:-webkit-autofill:active,
         .contact-dark-input:-webkit-autofill,
         .contact-dark-input:-webkit-autofill:hover,
         .contact-dark-input:-webkit-autofill:focus,
         .contact-dark-input:-webkit-autofill:active {
-          -webkit-box-shadow: 0 0 0px 1000px rgba(10, 15, 24, 0.95) inset !important;
+          -webkit-box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
           -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
           caret-color: hsl(188 86% 53%) !important;
-          transition: background-color 9999s ease-in-out 0s;
+          background-color: #0a0f18 !important;
+          color: rgba(255,255,255,0.85) !important;
+          transition: background-color 9999s ease-in-out 0s !important;
         }
 
         /* ── ITI wrapper ── */
@@ -486,9 +501,13 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         }
         /* Kill browser autofill white bg inside search */
         .iti__search-input:-webkit-autofill,
-        .iti__search-input:-webkit-autofill:focus {
-          -webkit-box-shadow: 0 0 0px 1000px rgba(8, 14, 26, 0.98) inset !important;
+        .iti__search-input:-webkit-autofill:hover,
+        .iti__search-input:-webkit-autofill:focus,
+        .iti__search-input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0px 1000px #080e1a inset !important;
           -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
+          background-color: #080e1a !important;
+          transition: background-color 9999s ease-in-out 0s !important;
         }
 
         /* ── Country items ── */
@@ -657,7 +676,7 @@ export function Contact() {
                 {t("Send a Message", "أرسل رسالة")}
               </p>
 
-              <form onSubmit={form.handleSubmit(onSubmit)} noValidate style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+              <form onSubmit={form.handleSubmit(onSubmit)} noValidate autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                   <Field label={t("Name", "الاسم")} error={form.formState.errors.name?.message}>
                     <SlimInput
