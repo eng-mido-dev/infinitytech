@@ -200,11 +200,13 @@ function SlimInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
+      className={`contact-dark-input${props.className ? ` ${props.className}` : ""}`}
       style={{
         ...inputBase,
         borderBottomColor: focused ? "hsl(188 86% 53%)" : "rgba(255,255,255,0.12)",
         boxShadow: focused ? "0 1px 0 hsl(188 86% 53%)" : "none",
         caretColor: "hsl(188 86% 53%)",
+        ...props.style,
       }}
       onFocus={e => { setFocused(true); props.onFocus?.(e); }}
       onBlur={e => { setFocused(false); props.onBlur?.(e); }}
@@ -217,11 +219,13 @@ function SlimTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
   return (
     <textarea
       {...props}
+      className={`contact-dark-input${props.className ? ` ${props.className}` : ""}`}
       style={{
         ...inputBase, resize: "none", minHeight: "100px", display: "block",
         borderBottomColor: focused ? "hsl(188 86% 53%)" : "rgba(255,255,255,0.12)",
         boxShadow: focused ? "0 1px 0 hsl(188 86% 53%)" : "none",
         caretColor: "hsl(188 86% 53%)",
+        ...props.style,
       }}
       onFocus={e => { setFocused(true); props.onFocus?.(e); }}
       onBlur={e => { setFocused(false); props.onBlur?.(e); }}
@@ -233,16 +237,23 @@ function SlimTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
 interface ItiPhoneFieldProps {
   label: string;
   error?: string;
+  resetTrigger: number;
   onItiReady: (iti: ReturnType<typeof intlTelInput>) => void;
   onClearError: () => void;
 }
 
-function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneFieldProps) {
+function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }: ItiPhoneFieldProps) {
   const inputRef  = useRef<HTMLInputElement>(null);
   const itiRef    = useRef<ReturnType<typeof intlTelInput> | null>(null);
   const [focused,    setFocused]    = useState(false);
-  // "idle" = empty, "valid" = passes isValidNumber(), "invalid" = fails
   const [validState, setValidState] = useState<"idle" | "valid" | "invalid">("idle");
+
+  // Reset internal state when parent signals a form reset
+  useEffect(() => {
+    if (resetTrigger === 0) return;
+    setValidState("idle");
+    if (inputRef.current) inputRef.current.value = "";
+  }, [resetTrigger]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -264,7 +275,6 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
     itiRef.current = iti;
     onItiReady(iti);
 
-    // Real-time validity check on each keystroke / country switch
     const checkValidity = () => {
       onClearError();
       const raw = el.value.trim();
@@ -283,7 +293,6 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Border / shadow: parent error > real-time valid state > focused > idle
   const borderColor = error
     ? "hsl(0 84% 60%)"
     : validState === "valid"
@@ -314,7 +323,6 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
         {label}
       </label>
 
-      {/* Bottom-border wrapper — no `required`, no browser-native validation */}
       <div style={{
         borderBottom: `1px solid ${borderColor}`,
         boxShadow: shadowColor,
@@ -326,6 +334,7 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
           type="tel"
           inputMode="tel"
           autoComplete="tel"
+          className="contact-dark-input"
           style={{
             width: "100%", background: "transparent", border: "none",
             padding: "10px 0", fontSize: "14px",
@@ -337,7 +346,6 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
         />
       </div>
 
-      {/* Validity hint shown in real-time */}
       {validState === "valid" && !error && (
         <p style={{ fontSize: "11px", color: "#22c55e", marginTop: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -358,111 +366,172 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
 
       {/* ── Dark-theme CSS overrides for intl-tel-input ── */}
       <style>{`
-        /* Wrapper */
+        /* ── Autofill dark override (all contact form inputs) ── */
+        .contact-dark-input:-webkit-autofill,
+        .contact-dark-input:-webkit-autofill:hover,
+        .contact-dark-input:-webkit-autofill:focus,
+        .contact-dark-input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0px 1000px rgba(10, 15, 24, 0.95) inset !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+          caret-color: hsl(188 86% 53%) !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+
+        /* ── ITI wrapper ── */
         .iti { width: 100%; }
 
-        /* Flag-selector button */
+        /* ── Flag selector button ── */
         .iti__flag-container { padding: 0; }
         .iti__selected-flag {
           background: transparent !important;
           border: none !important;
-          border-radius: 0 !important;
-          padding: 10px 10px 10px 0 !important;
+          border-radius: 6px !important;
+          padding: 8px 10px 8px 0 !important;
           height: 100%;
           display: flex;
           align-items: center;
           gap: 6px;
+          transition: background 0.18s ease !important;
         }
-        .iti__selected-flag:hover,
+        .iti__selected-flag:hover {
+          background: rgba(34,211,238,0.07) !important;
+        }
         .iti__selected-flag:focus {
-          background: rgba(34,211,238,0.06) !important;
+          background: rgba(34,211,238,0.07) !important;
           outline: none !important;
         }
         .iti__selected-dial-code {
-          color: rgba(255,255,255,0.5) !important;
+          color: rgba(255,255,255,0.45) !important;
           font-size: 13px !important;
           font-family: inherit !important;
+          letter-spacing: 0.02em !important;
         }
         .iti__arrow {
-          border-top-color: rgba(255,255,255,0.3) !important;
-          border-bottom-color: rgba(255,255,255,0.3) !important;
-          margin-left: 4px !important;
+          border-top-color: rgba(255,255,255,0.25) !important;
+          border-bottom-color: rgba(255,255,255,0.25) !important;
+          margin-left: 5px !important;
+          transition: border-color 0.18s ease !important;
         }
-        .iti__arrow--up { border-bottom-color: hsl(188 86% 53%) !important; }
+        .iti__arrow--up {
+          border-bottom-color: hsl(188 86% 53%) !important;
+          border-top-color: transparent !important;
+        }
 
-        /* Phone input itself */
-        .iti input[type=tel], .iti input[type=text] {
+        /* ── Phone input field ── */
+        .iti input[type=tel],
+        .iti input[type=text] {
           background: transparent !important;
           color: rgba(255,255,255,0.85) !important;
           border: none !important;
           outline: none !important;
-          caret-color: hsl(188 86% 53%);
+          caret-color: hsl(188 86% 53%) !important;
         }
         .iti input[type=tel]::placeholder {
           color: rgba(255,255,255,0.2) !important;
         }
+        .iti input[type=tel]:-webkit-autofill,
+        .iti input[type=tel]:-webkit-autofill:hover,
+        .iti input[type=tel]:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0px 1000px rgba(10, 15, 24, 0.95) inset !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+        }
 
-        /* Dropdown */
+        /* ── Dropdown container — premium glassmorphism ── */
         .iti__country-list {
-          background: rgba(10,18,34,0.97) !important;
-          backdrop-filter: blur(20px) !important;
-          -webkit-backdrop-filter: blur(20px) !important;
-          border: 1px solid rgba(34,211,238,0.15) !important;
-          border-radius: 12px !important;
-          box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(34,211,238,0.08) !important;
-          padding: 6px 0 !important;
-          max-height: 260px !important;
+          background: rgba(8, 14, 26, 0.92) !important;
+          backdrop-filter: blur(24px) saturate(160%) !important;
+          -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+          border: 1px solid rgba(34,211,238,0.14) !important;
+          border-radius: 14px !important;
+          box-shadow:
+            0 24px 64px rgba(0,0,0,0.7),
+            0 0 0 1px rgba(255,255,255,0.04),
+            inset 0 1px 0 rgba(255,255,255,0.05) !important;
+          padding: 8px 0 !important;
+          max-height: 270px !important;
           overflow-y: auto !important;
           scrollbar-width: thin !important;
-          scrollbar-color: rgba(34,211,238,0.2) transparent !important;
-          margin-top: 4px !important;
+          scrollbar-color: rgba(34,211,238,0.22) transparent !important;
+          margin-top: 6px !important;
           z-index: 9999 !important;
         }
-        .iti__country-list::-webkit-scrollbar { width: 4px; }
+        .iti__country-list::-webkit-scrollbar { width: 3px; }
         .iti__country-list::-webkit-scrollbar-track { background: transparent; }
         .iti__country-list::-webkit-scrollbar-thumb {
-          background: rgba(34,211,238,0.25); border-radius: 4px;
+          background: rgba(34,211,238,0.22);
+          border-radius: 4px;
         }
 
-        /* Search box */
+        /* ── Search box — dark themed ── */
         .iti__search-input {
-          background: rgba(255,255,255,0.04) !important;
+          background: rgba(255,255,255,0.03) !important;
           border: none !important;
-          border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+          border-bottom: 1px solid rgba(255,255,255,0.07) !important;
           border-radius: 0 !important;
           color: rgba(255,255,255,0.8) !important;
           font-size: 13px !important;
-          padding: 10px 14px !important;
+          padding: 11px 16px !important;
           width: 100% !important;
           outline: none !important;
           font-family: inherit !important;
+          box-sizing: border-box !important;
+          transition: border-color 0.18s ease !important;
         }
-        .iti__search-input::placeholder { color: rgba(255,255,255,0.25) !important; }
-        .iti__search-input:focus { border-bottom-color: rgba(34,211,238,0.35) !important; }
+        .iti__search-input::placeholder {
+          color: rgba(255,255,255,0.22) !important;
+        }
+        .iti__search-input:focus {
+          border-bottom-color: rgba(34,211,238,0.32) !important;
+          background: rgba(34,211,238,0.03) !important;
+        }
+        /* Kill browser autofill white bg inside search */
+        .iti__search-input:-webkit-autofill,
+        .iti__search-input:-webkit-autofill:focus {
+          -webkit-box-shadow: 0 0 0px 1000px rgba(8, 14, 26, 0.98) inset !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
+        }
 
-        /* Country items */
+        /* ── Country items ── */
         .iti__country {
-          padding: 9px 14px !important;
-          color: rgba(255,255,255,0.65) !important;
+          padding: 10px 16px !important;
+          color: rgba(255,255,255,0.6) !important;
           font-size: 13px !important;
           display: flex !important;
           align-items: center !important;
           gap: 10px !important;
           cursor: pointer !important;
-          transition: background 0.12s ease !important;
+          transition: background 0.14s ease, color 0.14s ease !important;
+          border-radius: 0 !important;
         }
-        .iti__country:hover { background: rgba(34,211,238,0.08) !important; color: #fff !important; }
+        .iti__country:hover {
+          background: rgba(34,211,238,0.08) !important;
+          color: rgba(255,255,255,0.92) !important;
+        }
         .iti__country.iti__highlight {
-          background: rgba(34,211,238,0.12) !important;
+          background: rgba(34,211,238,0.13) !important;
           color: #fff !important;
         }
-        .iti__country-name { color: inherit !important; }
-        .iti__dial-code { color: rgba(255,255,255,0.35) !important; font-size: 12px !important; }
+        .iti__flag-box {
+          flex-shrink: 0;
+          line-height: 1;
+        }
+        .iti__country-name {
+          color: inherit !important;
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .iti__dial-code {
+          color: rgba(255,255,255,0.28) !important;
+          font-size: 12px !important;
+          flex-shrink: 0;
+        }
 
-        /* Divider between preferred + all countries */
+        /* ── Divider ── */
         .iti__divider {
-          border-color: rgba(255,255,255,0.06) !important;
-          margin: 4px 0 !important;
+          border-top: 1px solid rgba(255,255,255,0.05) !important;
+          margin: 5px 0 !important;
         }
       `}</style>
     </div>
@@ -472,8 +541,9 @@ function ItiPhoneField({ label, error, onItiReady, onClearError }: ItiPhoneField
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function Contact() {
   const { toast } = useToast();
-  const [phoneError, setPhoneError] = useState("");
-  const [isSending,  setIsSending]  = useState(false);
+  const [phoneError,    setPhoneError]    = useState("");
+  const [isSending,     setIsSending]     = useState(false);
+  const [resetTrigger,  setResetTrigger]  = useState(0);
   const { t, isRTL } = useLanguage();
   const itiRef = useRef<ReturnType<typeof intlTelInput> | null>(null);
   const handleItiReady = (iti: ReturnType<typeof intlTelInput>) => { itiRef.current = iti; };
@@ -485,7 +555,6 @@ export function Contact() {
 
   const onSubmit = async (data: FormValues) => {
     const iti = itiRef.current;
-    // ── Single validity gate: isValidNumber() is the only condition ──────────
     if (!iti?.isValidNumber()) {
       setPhoneError(
         t("Please enter a valid phone number with a complete number of digits",
@@ -495,12 +564,8 @@ export function Contact() {
     }
 
     setPhoneError("");
-
-    // ── Capture full international format via getNumber() ─────────────────────
     const finalPhoneNumber = iti.getNumber();
-    console.log("Sending to DB:", finalPhoneNumber);
 
-    // ── Send to API → DB (isSending gates the button) ────────────────────────
     setIsSending(true);
     try {
       await submitContactForm({ ...data, phone: finalPhoneNumber } as any);
@@ -511,8 +576,10 @@ export function Contact() {
           "شكرًا لتواصلك! سأرد عليك في أقرب وقت.",
         ),
       });
+      // Reset form fields + phone field valid state
       form.reset();
-      if (iti?.telInput) iti.telInput.value = "";
+      setPhoneError("");
+      setResetTrigger(n => n + 1);
     } catch {
       toast({
         variant: "destructive",
@@ -520,7 +587,7 @@ export function Contact() {
         description: t("Something went wrong. Please try again.", "حدث خطأ ما. يرجى المحاولة مرة أخرى."),
       });
     } finally {
-      setIsSending(false); // always runs — button is never permanently disabled
+      setIsSending(false);
     }
   };
 
@@ -600,10 +667,10 @@ export function Contact() {
                     />
                   </Field>
 
-                  {/* intl-tel-input phone field */}
                   <ItiPhoneField
                     label={t("WhatsApp Number", "رقم الواتساب")}
                     error={phoneError}
+                    resetTrigger={resetTrigger}
                     onItiReady={handleItiReady}
                     onClearError={() => setPhoneError("")}
                   />
