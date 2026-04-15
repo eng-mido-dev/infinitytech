@@ -514,29 +514,36 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           border-radius: 4px;
         }
 
-        /* ── Search box — fully dark, no browser override ── */
+        /* ── Search box — redesigned with full border + icon ── */
         .iti__search-input {
-          background: rgba(255,255,255,0.025) !important;
-          background-color: rgba(255,255,255,0.025) !important;
-          border: none !important;
-          border-bottom: 1px solid rgba(255,255,255,0.07) !important;
-          border-radius: 0 !important;
-          color: rgba(255,255,255,0.8) !important;
+          background: rgba(255,255,255,0.04) !important;
+          background-color: rgba(255,255,255,0.04) !important;
+          border: 1px solid rgba(255,255,255,0.1) !important;
+          border-radius: 9px !important;
+          color: rgba(255,255,255,0.95) !important;
           font-size: 13px !important;
-          padding: 11px 16px !important;
+          padding: 10px 14px 10px 38px !important;
           width: 100% !important;
           outline: none !important;
           font-family: inherit !important;
           box-sizing: border-box !important;
-          transition: border-color 0.18s ease, background 0.18s ease !important;
+          margin: 10px 10px 6px !important;
+          width: calc(100% - 20px) !important;
+          transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease !important;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.35)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
+          background-repeat: no-repeat !important;
+          background-position: 12px center !important;
         }
         .iti__search-input::placeholder {
-          color: rgba(255,255,255,0.22) !important;
+          color: rgba(255,255,255,0.28) !important;
         }
         .iti__search-input:focus {
-          border-bottom-color: rgba(34,211,238,0.32) !important;
-          background: rgba(34,211,238,0.04) !important;
-          background-color: rgba(34,211,238,0.04) !important;
+          border-color: rgba(34,211,238,0.4) !important;
+          background-color: rgba(34,211,238,0.05) !important;
+          box-shadow: 0 0 0 3px rgba(34,211,238,0.07) !important;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(34,211,238,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
+          background-repeat: no-repeat !important;
+          background-position: 12px center !important;
         }
         .iti__search-input:-webkit-autofill,
         .iti__search-input:-webkit-autofill:hover,
@@ -544,7 +551,7 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti__search-input:-webkit-autofill:active {
           -webkit-background-clip: text !important;
           background-clip: text !important;
-          -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.95) !important;
           -webkit-box-shadow: 0 0 0px 1000px #080e1a inset !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
@@ -706,7 +713,7 @@ export function Contact() {
             <div style={{
               background: "rgba(10,15,24,0.6)", backdropFilter: "blur(14px)",
               WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "20px", padding: "clamp(24px, 4vw, 44px)",
+              borderRadius: "14px", padding: "clamp(24px, 4vw, 44px)",
             }}>
               <p style={{
                 fontSize: "11px", fontWeight: 700, letterSpacing: "0.18em",
