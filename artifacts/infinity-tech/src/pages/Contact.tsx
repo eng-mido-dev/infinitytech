@@ -416,27 +416,34 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         }
 
         /* ════════════════════════════════════════════════════════════════
-           ITI WRAPPER
+           ITI v27 — Override CSS custom properties at the root level.
+           This kills the white defaults before any class rule fires.
         ════════════════════════════════════════════════════════════════ */
-        .iti { width: 100%; }
+        .iti {
+          --iti-dropdown-bg: rgba(12, 14, 22, 0.97);
+          --iti-border-color: rgba(255,255,255,0.06);
+          --iti-hover-color: rgba(255,255,255,0.05);
+          --iti-icon-color: rgba(148,175,202,0.5);
+          width: 100%;
+        }
 
-        /* ── Flag selector trigger ── */
-        .iti__flag-container { padding: 0; }
-        .iti__selected-flag {
+        /* ── Flag-selector trigger (v27: .iti__selected-country) ── */
+        .iti__country-container { padding: 0 !important; }
+        .iti__selected-country,
+        .iti__selected-country-primary {
           background: transparent !important;
           border: none !important;
-          border-radius: 8px !important;
-          padding: 8px 8px 8px 0 !important;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          gap: 7px;
+          gap: 6px !important;
           transition: background 0.25s ease !important;
         }
-        .iti__selected-flag:hover,
-        .iti__selected-flag:focus {
+        .iti__selected-country-primary {
+          padding: 0 8px 0 0 !important;
+          height: 100% !important;
+        }
+        .iti__selected-country:hover .iti__selected-country-primary,
+        .iti__selected-country-primary:hover {
           background: rgba(255,255,255,0.04) !important;
-          outline: none !important;
+          border-radius: 6px !important;
         }
         .iti__selected-dial-code {
           color: rgba(255,255,255,0.5) !important;
@@ -445,19 +452,16 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           letter-spacing: 0.03em !important;
           font-weight: 500 !important;
         }
+        /* Arrow — v27 uses a rotated square chevron, not a triangle */
         .iti__arrow {
-          width: 0 !important;
-          height: 0 !important;
-          border-left: 4px solid transparent !important;
-          border-right: 4px solid transparent !important;
-          border-top: 5px solid rgba(255,255,255,0.28) !important;
-          border-bottom: none !important;
-          margin-left: 4px !important;
+          border-right-color: rgba(255,255,255,0.3) !important;
+          border-bottom-color: rgba(255,255,255,0.3) !important;
+          margin-left: 5px !important;
           transition: border-color 0.25s ease, transform 0.25s ease !important;
         }
         .iti__arrow--up {
-          border-top-color: hsl(188 86% 53%) !important;
-          transform: rotate(180deg) !important;
+          border-right-color: hsl(188 86% 53%) !important;
+          border-bottom-color: hsl(188 86% 53%) !important;
         }
 
         /* ── Phone input field ── */
@@ -475,9 +479,7 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           background: transparent !important;
           background-color: transparent !important;
         }
-        .iti input[type=tel]::placeholder {
-          color: rgba(255,255,255,0.2) !important;
-        }
+        .iti input[type=tel]::placeholder { color: rgba(255,255,255,0.2) !important; }
         .iti input[type=tel]:-webkit-autofill,
         .iti input[type=tel]:-webkit-autofill:hover,
         .iti input[type=tel]:-webkit-autofill:focus,
@@ -490,68 +492,102 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         }
 
         /* ════════════════════════════════════════════════════════════════
-           DROPDOWN — PREMIUM GLASSMORPHISM PANEL
+           DROPDOWN — the outer shell is .iti__dropdown-content in v27.
+           THIS is what had the white background. Target it directly.
         ════════════════════════════════════════════════════════════════ */
-        .iti__country-list {
-          background: rgba(15, 15, 15, 0.8) !important;
-          backdrop-filter: blur(20px) saturate(140%) !important;
-          -webkit-backdrop-filter: blur(20px) saturate(140%) !important;
-          border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        .iti__dropdown-content {
+          background: rgba(12, 14, 22, 0.97) !important;
+          backdrop-filter: blur(20px) saturate(150%) !important;
+          -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+          border: 1px solid rgba(255,255,255,0.06) !important;
           border-radius: 16px !important;
+          overflow: hidden !important;
           box-shadow:
-            0 24px 64px rgba(0,0,0,0.75),
-            0 0 0 1px rgba(255,255,255,0.03),
+            0 24px 64px rgba(0,0,0,0.85),
             inset 0 1px 0 rgba(255,255,255,0.04) !important;
-          padding: 0 0 8px !important;
-          max-height: 300px !important;
-          overflow-y: auto !important;
-          scrollbar-width: thin !important;
-          scrollbar-color: rgba(255,255,255,0.1) transparent !important;
           margin-top: 8px !important;
           z-index: 9999 !important;
-          overflow-x: hidden !important;
           min-width: 280px !important;
         }
-        .iti__country-list::-webkit-scrollbar { width: 2px; }
-        .iti__country-list::-webkit-scrollbar-track { background: transparent; }
+
+        /* ── Scrollable country list (sits inside .iti__dropdown-content) ── */
+        .iti__country-list {
+          list-style: none !important;
+          padding: 0 0 8px !important;
+          margin: 0 !important;
+          max-height: 240px !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          scrollbar-width: thin !important;
+          scrollbar-color: rgba(255,255,255,0.1) transparent !important;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+        }
+        .iti__country-list::-webkit-scrollbar { width: 2px !important; }
+        .iti__country-list::-webkit-scrollbar-track { background: transparent !important; }
         .iti__country-list::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.1);
-          border-radius: 99px;
+          background: rgba(255,255,255,0.1) !important;
+          border-radius: 99px !important;
         }
 
-        /* ── Search bar — dark-themed input ── */
+        /* ════════════════════════════════════════════════════════════════
+           SEARCH BAR
+           v27 structure:
+             .iti__search-input-wrapper   (flex row, position:relative)
+               .iti__search-icon          (position:absolute, left icon)
+               input.iti__search-input    (the text field)
+               button.iti__search-clear   (position:absolute, X button)
+        ════════════════════════════════════════════════════════════════ */
+
+        /* Wrapper: remove the gray bottom border, add dark separator */
+        .iti__search-input-wrapper {
+          border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+          background: transparent !important;
+          padding: 10px 10px 0 !important;
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+
+        /* The actual text input — NO background-image (icon is a sibling SVG) */
         .iti__search-input {
-          background: rgba(8, 10, 16, 0.75) !important;
-          background-color: rgba(8, 10, 16, 0.75) !important;
+          background: rgba(8, 10, 16, 0.85) !important;
+          background-color: rgba(8, 10, 16, 0.85) !important;
+          background-image: none !important;
           border: 1px solid rgba(255,255,255,0.1) !important;
-          border-radius: 10px !important;
+          border-radius: 8px !important;
           color: rgba(255,255,255,0.88) !important;
           font-size: 13px !important;
           font-weight: 400 !important;
           letter-spacing: 0.01em !important;
-          padding: 9px 14px 9px 36px !important;
+          /* space for left icon + space for right clear btn */
+          padding: 8px 34px 8px 34px !important;
           outline: none !important;
           font-family: inherit !important;
           box-sizing: border-box !important;
           display: block !important;
-          margin: 10px 10px 8px !important;
-          width: calc(100% - 20px) !important;
-          transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease !important;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(148%2C174%2C200%2C0.45)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
-          background-repeat: no-repeat !important;
-          background-position: 11px center !important;
+          width: 100% !important;
+          margin: 0 0 10px !important;
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
         }
         .iti__search-input::placeholder {
-          color: rgba(255,255,255,0.2) !important;
+          color: rgba(255,255,255,0.22) !important;
           font-style: normal !important;
         }
         .iti__search-input:focus {
-          border-color: rgba(34,211,238,0.3) !important;
-          background-color: rgba(8, 10, 16, 0.9) !important;
-          box-shadow: 0 0 0 3px rgba(34,211,238,0.05) !important;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(34%2C211%2C238%2C0.5)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
-          background-repeat: no-repeat !important;
-          background-position: 11px center !important;
+          border-color: rgba(34,211,238,0.32) !important;
+          background-color: rgba(8, 10, 16, 0.95) !important;
+          box-shadow: 0 0 0 3px rgba(34,211,238,0.06) !important;
+        }
+        /* Suppress browser native search-cancel on webkit */
+        .iti__search-input::-webkit-search-cancel-button,
+        .iti__search-input::-webkit-search-decoration {
+          -webkit-appearance: none !important;
+          display: none !important;
         }
         .iti__search-input:-webkit-autofill,
         .iti__search-input:-webkit-autofill:hover,
@@ -564,12 +600,50 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
-        /* ── Country rows — three-column ruler alignment ── */
+        /* Left search icon — style the library's own SVG */
+        .iti__search-icon {
+          left: 20px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          pointer-events: none !important;
+          z-index: 1 !important;
+        }
+        .iti__search-icon-svg {
+          stroke: rgba(148,175,202,0.5) !important;
+          width: 14px !important;
+          height: 14px !important;
+        }
+        .iti__search-input-wrapper:focus-within .iti__search-icon-svg {
+          stroke: rgba(34,211,238,0.55) !important;
+        }
+
+        /* Right clear (X) button */
+        .iti__search-clear {
+          right: 20px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          background: transparent !important;
+          border: none !important;
+          padding: 4px !important;
+          border-radius: 4px !important;
+          cursor: pointer !important;
+          transition: background 0.18s ease !important;
+        }
+        .iti__search-clear:hover,
+        .iti__search-clear:focus-visible {
+          background: rgba(255,255,255,0.08) !important;
+          outline: none !important;
+        }
+        .iti__search-clear-svg { width: 13px !important; height: 13px !important; }
+        .iti__search-clear .iti__search-clear-bg { fill: rgba(148,175,202,0.5) !important; }
+        .iti__search-clear:hover .iti__search-clear-bg { fill: rgba(200,225,240,0.7) !important; }
+
+        /* ── Country rows — ruler-straight three-column layout ── */
         .iti__country {
           padding: 8px 14px !important;
           display: flex !important;
           align-items: center !important;
-          gap: 0 !important;
+          gap: 10px !important;
           cursor: pointer !important;
           color: rgba(255,255,255,0.6) !important;
           font-size: 13px !important;
@@ -577,36 +651,41 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
           letter-spacing: 0.01em !important;
           border-left: 2px solid transparent !important;
-          transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+          transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease !important;
+          background: transparent !important;
         }
         .iti__country:hover {
           background: rgba(255,255,255,0.05) !important;
-          color: rgba(255,255,255,0.9) !important;
+          color: rgba(255,255,255,0.92) !important;
           border-left-color: rgba(34,211,238,0.4) !important;
         }
-        .iti__country.iti__highlight {
+        .iti__country.iti__highlight,
+        .iti__country[aria-selected="true"] {
           background: rgba(34,211,238,0.08) !important;
           color: #fff !important;
           border-left-color: hsl(188 86% 53%) !important;
         }
 
-        /* Col 1 — Flag: fixed 28px column so all names start at the same X */
+        /* Col 1 — Flag: fixed 22px wide so every name starts at the same X */
         .iti__flag-box {
-          flex: 0 0 28px !important;
-          width: 28px !important;
+          flex: 0 0 22px !important;
+          width: 22px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: flex-start !important;
           line-height: 1 !important;
-          margin-right: 10px !important;
         }
-        /* Flags get a modern micro border-radius */
         .iti__flag {
           border-radius: 2px !important;
-          overflow: hidden !important;
+          flex-shrink: 0 !important;
+        }
+        /* v27 adds margin-right via .iti__country-list .iti__flag — strip it */
+        .iti__country-list .iti__flag {
+          margin-right: 0 !important;
+          margin-left: 0 !important;
         }
 
-        /* Col 2 — Country name: stretches to fill all remaining space */
+        /* Col 2 — Country name: fills all remaining horizontal space */
         .iti__country-name {
           flex: 1 1 auto !important;
           min-width: 0 !important;
@@ -614,10 +693,9 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           text-overflow: ellipsis !important;
           white-space: nowrap !important;
           color: inherit !important;
-          margin-right: 10px !important;
         }
 
-        /* Col 3 — Dial code: fixed right, distinct teal color */
+        /* Col 3 — Dial code: pinned right, tabular-nums, teal accent */
         .iti__dial-code {
           flex: 0 0 auto !important;
           font-size: 11.5px !important;
@@ -629,15 +707,16 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           border: 1px solid rgba(34,211,238,0.12) !important;
           border-radius: 5px !important;
           padding: 1px 7px !important;
-          transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease !important;
           white-space: nowrap !important;
+          transition: color 0.25s ease, background 0.25s ease, border-color 0.25s ease !important;
         }
         .iti__country:hover .iti__dial-code {
           color: rgba(34,211,238,0.85) !important;
           background: rgba(34,211,238,0.1) !important;
           border-color: rgba(34,211,238,0.25) !important;
         }
-        .iti__country.iti__highlight .iti__dial-code {
+        .iti__country.iti__highlight .iti__dial-code,
+        .iti__country[aria-selected="true"] .iti__dial-code {
           color: hsl(188 86% 65%) !important;
           background: rgba(34,211,238,0.12) !important;
           border-color: rgba(34,211,238,0.3) !important;
