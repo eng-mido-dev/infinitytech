@@ -164,45 +164,79 @@ export function About() {
                 />
               </div>
 
-              {/*
-               * Identity — always dir="ltr" so language toggle never shifts the card.
-               * min-h prevents layout-shift when the contact button text switches EN↔AR.
-               */}
+              {/* Identity — switches layout/text based on active language */}
               <div
-                className="px-5 pb-5 pt-4 min-h-[9rem]"
-                dir="ltr"
-                style={{ textAlign: "left" }}
+                className="px-5 pb-5 pt-4"
+                dir={isRTL ? "rtl" : "ltr"}
+                style={{ textAlign: isRTL ? "right" : "left" }}
               >
+                {/* Name */}
                 <h2
-                  className="font-mono font-bold text-white leading-tight mb-0.5"
-                  style={{ fontSize: "clamp(1rem, 3.5vw, 1.2rem)", letterSpacing: "-0.01em" }}
+                  className="font-bold text-white leading-tight mb-0.5"
+                  style={{
+                    fontSize: "clamp(1rem, 3.5vw, 1.15rem)",
+                    letterSpacing: isRTL ? "0.01em" : "-0.01em",
+                    fontFamily: isRTL
+                      ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif"
+                      : "'Space Mono', monospace",
+                  }}
                 >
-                  Eng. Fares Salah
+                  {isRTL ? "م. فارس صلاح" : "Eng. Fares Salah"}
                 </h2>
+
+                {/* Role */}
                 <p
-                  className="text-sm font-medium mb-4"
-                  style={{ color: "hsl(188 86% 53%)" }}
+                  className="text-sm font-medium mb-4 leading-snug"
+                  style={{
+                    color: "hsl(188 86% 53%)",
+                    fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+                  }}
                 >
-                  Hardware Engineer & PCB Designer
+                  {isRTL
+                    ? "مهندس أجهزة وتصميم دوائر إلكترونية (PCB)"
+                    : "Hardware Engineer & PCB Designer"}
                 </p>
 
+                {/* Contact details — icon always on the outer edge */}
                 <div className="flex flex-col gap-2 mb-5">
-                  <div className="flex items-center gap-2 text-xs min-w-0" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <div
+                    className="flex items-center gap-2 text-xs min-w-0"
+                    style={{
+                      color: "rgba(255,255,255,0.4)",
+                      flexDirection: isRTL ? "row-reverse" : "row",
+                      justifyContent: isRTL ? "flex-end" : "flex-start",
+                    }}
+                  >
                     <MapPin className="w-3 h-3 shrink-0" style={{ color: "hsl(188 86% 53% / 0.6)" }} />
-                    <span className="truncate">Alexandria, Egypt</span>
+                    <span className="truncate">
+                      {isRTL ? "الإسكندرية، مصر" : "Alexandria, Egypt"}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs min-w-0" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <div
+                    className="flex items-center gap-2 text-xs min-w-0"
+                    style={{
+                      color: "rgba(255,255,255,0.4)",
+                      flexDirection: isRTL ? "row-reverse" : "row",
+                      justifyContent: isRTL ? "flex-end" : "flex-start",
+                    }}
+                  >
                     <Mail className="w-3 h-3 shrink-0" style={{ color: "hsl(188 86% 53% / 0.6)" }} />
-                    <span className="truncate">fares@infinitytech.dev</span>
+                    <span className="truncate" dir="ltr">fares@infinitytech.dev</span>
                   </div>
                 </div>
 
+                {/* CTA button */}
                 <Link
                   href="/contact"
-                  className="block w-full py-2.5 rounded-xl text-center text-sm font-bold active:scale-[0.97]"
+                  className="block w-full py-2.5 rounded-xl text-center font-bold active:scale-[0.97]"
                   style={{
                     background: "hsl(188 86% 53%)",
                     color: "#0a0f18",
+                    fontSize: isRTL ? "0.95rem" : "0.875rem",
+                    fontFamily: isRTL
+                      ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif"
+                      : undefined,
+                    letterSpacing: isRTL ? "0.02em" : undefined,
                     transition: "background 0.2s ease, box-shadow 0.25s ease",
                   }}
                   onMouseEnter={e => {
@@ -216,7 +250,7 @@ export function About() {
                     el.style.boxShadow = "none";
                   }}
                 >
-                  {t("Contact", "تواصل")}
+                  {isRTL ? "اتصل بنا" : "Contact"}
                 </Link>
               </div>
             </div>
