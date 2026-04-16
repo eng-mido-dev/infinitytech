@@ -66,3 +66,10 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BA1helny113_SmCv9W2FUC2UAClGBBCnlSXKCylL1FhghyXwI_hiDAjlOJ08Xu68CQdwi79GtPEayirxMbyA_v8"
+VAPID_PRIVATE_KEY = "B-_pHjv-WChxCs5wVaQkJZyXtc3F30p7R1CYLwZ4Ais"
+VAPID_EMAIL = "mailto:admin.infinity.tech@gmail.com"

@@ -8,6 +8,7 @@ import projectsRouter from "./projects";
 import skillsRouter from "./skills";
 import setupRouter from "./setup";
 import contactRouter from "./contact";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(projectsRouter);
 router.use(skillsRouter);
 router.use(setupRouter);
 router.use(contactRouter);
+router.use(pushRouter);
 
 export default router;

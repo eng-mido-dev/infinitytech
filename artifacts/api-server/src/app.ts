@@ -8,6 +8,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// ── Trust Replit's reverse proxy ──────────────────────────────────────────────
+app.set("trust proxy", 1);
+
 // ── Security headers ─────────────────────────────────────────────────────────
 app.use(
   helmet({

@@ -4,3 +4,4 @@ export * from "./notifications";
 export * from "./projects";
 export * from "./contact";
 export * from "./skills";
+export * from "./push-subscriptions";

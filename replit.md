@@ -106,6 +106,10 @@ Routes:
 - `GET/PATCH /api/notifications`
 - `POST /api/setup/schema` — one-time schema bootstrap (admin-protected)
 - `GET /api/healthz`
+- `GET /api/push/vapid-public-key` — returns VAPID public key for browser subscription
+- `POST /api/push/subscribe` — save/upsert a browser PushSubscription (admin-protected)
+- `DELETE /api/push/subscribe` — remove a subscription by endpoint (admin-protected)
+- `POST /api/push/test` — broadcast a test push to all subscriptions (admin-protected)
 
 Security:
 - **Helmet** — secure HTTP headers

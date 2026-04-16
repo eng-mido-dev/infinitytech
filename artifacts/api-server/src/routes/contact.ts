@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, contactMessages } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { z } from "zod";
+import { broadcastPush } from "./push";
 
 const router = Router();
 
@@ -20,6 +21,15 @@ router.post("/contact", async (req, res) => {
 
   try {
     await db.insert(contactMessages).values(parsed.data);
+
+    // Fire-and-forget push notification to all admin subscriptions
+    broadcastPush({
+      title: `📩 New message from ${parsed.data.name}`,
+      body:  `${parsed.data.subject} — ${parsed.data.message.slice(0, 100)}${parsed.data.message.length > 100 ? "…" : ""}`,
+      icon:  "/favicon.svg",
+      tag:   "new-contact",
+    }).catch(() => {}); // never block the HTTP response
+
     return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

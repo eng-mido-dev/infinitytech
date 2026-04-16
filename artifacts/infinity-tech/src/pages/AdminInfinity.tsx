@@ -369,6 +369,17 @@ function MessageCard({ msg, isNew }: { msg: Message; isNew: boolean }) {
   );
 }
 
+// ── urlBase64ToUint8Array helper ──────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64  = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw     = atob(base64);
+  const buf     = new ArrayBuffer(raw.length);
+  const view    = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+  return buf;
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [messages, setMessages]     = useState<Message[]>([]);
@@ -379,7 +390,93 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [notifPerm, setNotifPerm]   = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
-  const seenIds                     = useRef<Set<number>>(new Set());
+  const seenIds = useRef<Set<number>>(new Set());
+
+  // ── Web Push state ───────────────────────────────────────────────────────────
+  type PushStatus = "unsupported" | "idle" | "subscribing" | "subscribed" | "unsubscribing" | "error";
+  const [pushStatus, setPushStatus]   = useState<PushStatus>("idle");
+  const [pushMsg, setPushMsg]         = useState("");
+  const activeSub                     = useRef<globalThis.PushSubscription | null>(null);
+
+  // Check on mount whether a push subscription already exists
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushStatus("unsupported");
+      return;
+    }
+    navigator.serviceWorker.ready.then(reg => {
+      reg.pushManager.getSubscription().then(sub => {
+        if (sub) { activeSub.current = sub; setPushStatus("subscribed"); }
+      });
+    }).catch(() => {});
+  }, []);
+
+  async function subscribePush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setPushStatus("subscribing");
+    setPushMsg("");
+    try {
+      // 1. Get VAPID public key
+      const keyRes = await fetch(`${API_BASE}/api/push/vapid-public-key`);
+      if (!keyRes.ok) throw new Error("Could not fetch VAPID key");
+      const { publicKey } = await keyRes.json();
+
+      // 2. Register / reuse service worker
+      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.ready;
+
+      // 3. Request notification permission if needed
+      let perm = Notification.permission;
+      if (perm === "default") perm = await Notification.requestPermission();
+      setNotifPerm(perm);
+      if (perm !== "granted") throw new Error("Notification permission denied");
+
+      // 4. Subscribe to push
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      activeSub.current = sub;
+
+      // 5. Save subscription on server
+      const saveRes = await fetch(`${API_BASE}/api/push/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-pin": pin },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      if (!saveRes.ok) throw new Error("Failed to save subscription");
+
+      setPushStatus("subscribed");
+      setPushMsg("Push notifications enabled!");
+      setTimeout(() => setPushMsg(""), 4000);
+    } catch (err: any) {
+      setPushStatus("error");
+      setPushMsg(err.message || "Push setup failed");
+      setTimeout(() => { setPushStatus("idle"); setPushMsg(""); }, 5000);
+    }
+  }
+
+  async function unsubscribePush() {
+    if (!activeSub.current) return;
+    setPushStatus("unsubscribing");
+    try {
+      const endpoint = activeSub.current.endpoint;
+      await activeSub.current.unsubscribe();
+      activeSub.current = null;
+      await fetch(`${API_BASE}/api/push/subscribe`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "x-admin-pin": pin },
+        body: JSON.stringify({ endpoint }),
+      });
+      setPushStatus("idle");
+      setPushMsg("Push notifications disabled");
+      setTimeout(() => setPushMsg(""), 3000);
+    } catch {
+      setPushStatus("subscribed");
+      setPushMsg("Failed to unsubscribe");
+      setTimeout(() => setPushMsg(""), 3000);
+    }
+  }
 
   async function requestNotifPermission() {
     if (!("Notification" in window)) return;
@@ -484,41 +581,71 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
             {messages.length} message{messages.length !== 1 ? "s" : ""}
           </span>
 
-          {/* Notification permission button */}
-          {"Notification" in window && notifPerm !== "granted" && (
+          {/* Push notification control */}
+          {pushStatus === "unsupported" ? null : pushStatus === "subscribed" ? (
             <button
-              onClick={requestNotifPermission}
-              title={notifPerm === "denied" ? "Notifications blocked — enable in browser settings" : "Enable notifications"}
-              disabled={notifPerm === "denied"}
+              onClick={unsubscribePush}
+              title="Disable push notifications"
               style={{
-                background: notifPerm === "denied" ? "rgba(248,113,113,0.06)" : "rgba(34,211,238,0.07)",
-                border: `1px solid ${notifPerm === "denied" ? "rgba(248,113,113,0.2)" : "rgba(34,211,238,0.2)"}`,
-                borderRadius: 8, padding: "6px 10px", cursor: notifPerm === "denied" ? "not-allowed" : "pointer",
-                color: notifPerm === "denied" ? "rgba(248,113,113,0.6)" : "hsl(188 86% 53% / 0.7)",
-                display: "flex", alignItems: "center", gap: 5,
-                fontSize: 11, fontWeight: 600,
-                transition: "background 0.18s ease",
-                opacity: notifPerm === "denied" ? 0.7 : 1,
+                background: "rgba(37,211,102,0.07)", border: "1px solid rgba(37,211,102,0.22)",
+                borderRadius: 8, padding: "6px 10px", cursor: "pointer",
+                color: "rgba(37,211,102,0.8)", display: "flex", alignItems: "center", gap: 5,
+                fontSize: 11, fontWeight: 600, transition: "background 0.18s ease",
               }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(248,113,113,0.1)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(248,113,113,0.3)"; (e.currentTarget as HTMLElement).style.color = "#f87171"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(37,211,102,0.07)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(37,211,102,0.22)"; (e.currentTarget as HTMLElement).style.color = "rgba(37,211,102,0.8)"; }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                {notifPerm === "denied" && <line x1="1" y1="1" x2="23" y2="23"/>}
-              </svg>
-              {notifPerm === "denied" ? "Blocked" : "Enable alerts"}
-            </button>
-          )}
-          {notifPerm === "granted" && (
-            <span style={{
-              fontSize: 10, color: "rgba(37,211,102,0.7)", display: "flex", alignItems: "center", gap: 4,
-              background: "rgba(37,211,102,0.07)", border: "1px solid rgba(37,211,102,0.18)",
-              borderRadius: 8, padding: "6px 10px", fontWeight: 600,
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
-              Alerts on
+              Push on
+            </button>
+          ) : pushStatus === "subscribing" || pushStatus === "unsubscribing" ? (
+            <span style={{
+              fontSize: 11, color: "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", gap: 5,
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 8, padding: "6px 10px",
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              {pushStatus === "subscribing" ? "Enabling…" : "Disabling…"}
             </span>
+          ) : pushStatus === "error" ? (
+            <button
+              onClick={subscribePush}
+              title={pushMsg || "Push notification error — click to retry"}
+              style={{
+                background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.25)",
+                borderRadius: 8, padding: "6px 10px", cursor: "pointer",
+                color: "rgba(248,113,113,0.8)", display: "flex", alignItems: "center", gap: 5,
+                fontSize: 11, fontWeight: 600,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Retry push
+            </button>
+          ) : (
+            <button
+              onClick={subscribePush}
+              title="Enable web push notifications — get alerted on new contacts even when tab is closed"
+              style={{
+                background: "rgba(34,211,238,0.07)", border: "1px solid rgba(34,211,238,0.2)",
+                borderRadius: 8, padding: "6px 10px", cursor: "pointer",
+                color: "hsl(188 86% 53% / 0.75)", display: "flex", alignItems: "center", gap: 5,
+                fontSize: 11, fontWeight: 600, transition: "background 0.18s ease, box-shadow 0.18s ease",
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(34,211,238,0.14)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 12px rgba(34,211,238,0.15)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(34,211,238,0.07)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              Enable push
+            </button>
           )}
 
           <button
@@ -634,8 +761,34 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
         )}
       </main>
 
+      {/* Push message toast */}
+      {pushMsg && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          zIndex: 1000,
+          background: pushStatus === "error" ? "rgba(248,113,113,0.15)" : "rgba(12,20,35,0.92)",
+          border: `1px solid ${pushStatus === "error" ? "rgba(248,113,113,0.35)" : "rgba(34,211,238,0.25)"}`,
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          borderRadius: 12, padding: "12px 20px",
+          color: pushStatus === "error" ? "#f87171" : "hsl(188 86% 53%)",
+          fontSize: 13, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 8,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+          whiteSpace: "nowrap",
+          animation: "fadeInUp 0.25s ease",
+        }}>
+          {pushStatus === "error"
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          }
+          {pushMsg}
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         input::placeholder { color: rgba(255,255,255,0.2); }
       `}</style>
     </div>
