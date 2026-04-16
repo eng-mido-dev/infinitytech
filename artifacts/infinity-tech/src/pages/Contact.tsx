@@ -420,41 +420,44 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         ════════════════════════════════════════════════════════════════ */
         .iti { width: 100%; }
 
-        /* ── Flag selector button ── */
+        /* ── Flag selector trigger ── */
         .iti__flag-container { padding: 0; }
         .iti__selected-flag {
           background: transparent !important;
           border: none !important;
-          border-radius: 6px !important;
-          padding: 8px 10px 8px 0 !important;
+          border-radius: 8px !important;
+          padding: 8px 8px 8px 0 !important;
           height: 100%;
           display: flex;
           align-items: center;
-          gap: 6px;
-          transition: background 0.18s ease !important;
+          gap: 7px;
+          transition: background 0.2s ease !important;
         }
-        .iti__selected-flag:hover {
-          background: rgba(34,211,238,0.07) !important;
-        }
+        .iti__selected-flag:hover,
         .iti__selected-flag:focus {
-          background: rgba(34,211,238,0.07) !important;
+          background: rgba(34,211,238,0.06) !important;
           outline: none !important;
         }
         .iti__selected-dial-code {
-          color: rgba(255,255,255,0.45) !important;
+          color: rgba(255,255,255,0.5) !important;
           font-size: 13px !important;
           font-family: inherit !important;
-          letter-spacing: 0.02em !important;
+          letter-spacing: 0.03em !important;
+          font-weight: 500 !important;
         }
         .iti__arrow {
-          border-top-color: rgba(255,255,255,0.25) !important;
-          border-bottom-color: rgba(255,255,255,0.25) !important;
-          margin-left: 5px !important;
-          transition: border-color 0.18s ease !important;
+          width: 0 !important;
+          height: 0 !important;
+          border-left: 4px solid transparent !important;
+          border-right: 4px solid transparent !important;
+          border-top: 5px solid rgba(255,255,255,0.3) !important;
+          border-bottom: none !important;
+          margin-left: 4px !important;
+          transition: border-color 0.2s ease, transform 0.2s ease !important;
         }
         .iti__arrow--up {
-          border-bottom-color: hsl(188 86% 53%) !important;
-          border-top-color: transparent !important;
+          border-top-color: hsl(188 86% 53%) !important;
+          transform: rotate(180deg) !important;
         }
 
         /* ── Phone input field ── */
@@ -462,7 +465,7 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti input[type=text] {
           background: transparent !important;
           background-color: transparent !important;
-          color: rgba(255,255,255,0.85) !important;
+          color: rgba(255,255,255,0.9) !important;
           border: none !important;
           outline: none !important;
           caret-color: hsl(188 86% 53%) !important;
@@ -481,69 +484,73 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti input[type=tel]:-webkit-autofill:active {
           -webkit-background-clip: text !important;
           background-clip: text !important;
-          -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
           -webkit-box-shadow: 0 0 0px 1000px #0a0f18 inset !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
         /* ════════════════════════════════════════════════════════════════
-           DROPDOWN — PREMIUM GLASSMORPHISM
+           DROPDOWN — HIGH-END GLASSMORPHISM PANEL
         ════════════════════════════════════════════════════════════════ */
         .iti__country-list {
-          background: rgba(8, 14, 26, 0.94) !important;
-          backdrop-filter: blur(28px) saturate(180%) !important;
-          -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-          border: 1px solid rgba(34,211,238,0.14) !important;
-          border-radius: 14px !important;
+          background: rgba(7, 11, 20, 0.88) !important;
+          backdrop-filter: blur(15px) saturate(160%) !important;
+          -webkit-backdrop-filter: blur(15px) saturate(160%) !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          border-radius: 16px !important;
           box-shadow:
-            0 28px 72px rgba(0,0,0,0.75),
-            0 0 0 1px rgba(255,255,255,0.04),
-            inset 0 1px 0 rgba(255,255,255,0.06) !important;
-          padding: 8px 0 !important;
-          max-height: 270px !important;
+            0 32px 80px rgba(0,0,0,0.8),
+            0 0 0 1px rgba(34,211,238,0.06),
+            inset 0 1px 0 rgba(255,255,255,0.05) !important;
+          padding: 0 0 6px !important;
+          max-height: 300px !important;
           overflow-y: auto !important;
           scrollbar-width: thin !important;
-          scrollbar-color: rgba(34,211,238,0.22) transparent !important;
-          margin-top: 6px !important;
+          scrollbar-color: rgba(34,211,238,0.18) transparent !important;
+          margin-top: 8px !important;
           z-index: 9999 !important;
+          overflow-x: hidden !important;
         }
         .iti__country-list::-webkit-scrollbar { width: 3px; }
         .iti__country-list::-webkit-scrollbar-track { background: transparent; }
         .iti__country-list::-webkit-scrollbar-thumb {
-          background: rgba(34,211,238,0.22);
-          border-radius: 4px;
+          background: rgba(34,211,238,0.18);
+          border-radius: 99px;
         }
 
-        /* ── Search box — redesigned with full border + icon ── */
+        /* ── Search bar — floating pill inside the panel ── */
         .iti__search-input {
-          background: rgba(255,255,255,0.04) !important;
-          background-color: rgba(255,255,255,0.04) !important;
-          border: 1px solid rgba(255,255,255,0.1) !important;
-          border-radius: 9px !important;
-          color: rgba(255,255,255,0.95) !important;
+          background: rgba(255,255,255,0.05) !important;
+          background-color: rgba(255,255,255,0.05) !important;
+          border: 1px solid rgba(255,255,255,0.08) !important;
+          border-radius: 10px !important;
+          color: rgba(255,255,255,0.92) !important;
           font-size: 13px !important;
-          padding: 10px 14px 10px 38px !important;
-          width: 100% !important;
+          font-weight: 400 !important;
+          letter-spacing: 0.01em !important;
+          padding: 9px 14px 9px 36px !important;
           outline: none !important;
           font-family: inherit !important;
           box-sizing: border-box !important;
-          margin: 10px 10px 6px !important;
+          display: block !important;
+          margin: 10px 10px 8px !important;
           width: calc(100% - 20px) !important;
-          transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease !important;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.35)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
+          transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease !important;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
           background-repeat: no-repeat !important;
-          background-position: 12px center !important;
+          background-position: 11px center !important;
         }
         .iti__search-input::placeholder {
-          color: rgba(255,255,255,0.28) !important;
+          color: rgba(255,255,255,0.25) !important;
+          font-style: normal !important;
         }
         .iti__search-input:focus {
-          border-color: rgba(34,211,238,0.4) !important;
-          background-color: rgba(34,211,238,0.05) !important;
-          box-shadow: 0 0 0 3px rgba(34,211,238,0.07) !important;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(34,211,238,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
+          border-color: rgba(34,211,238,0.35) !important;
+          background-color: rgba(34,211,238,0.04) !important;
+          box-shadow: 0 0 0 3px rgba(34,211,238,0.06), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='rgba(34,211,238,0.55)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") !important;
           background-repeat: no-repeat !important;
-          background-position: 12px center !important;
+          background-position: 11px center !important;
         }
         .iti__search-input:-webkit-autofill,
         .iti__search-input:-webkit-autofill:hover,
@@ -551,52 +558,86 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti__search-input:-webkit-autofill:active {
           -webkit-background-clip: text !important;
           background-clip: text !important;
-          -webkit-text-fill-color: rgba(255,255,255,0.95) !important;
-          -webkit-box-shadow: 0 0 0px 1000px #080e1a inset !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.92) !important;
+          -webkit-box-shadow: 0 0 0px 1000px #07090f inset !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
-        /* ── Country items ── */
+        /* ── Country rows — clean three-column layout ── */
         .iti__country {
-          padding: 10px 16px !important;
-          color: rgba(255,255,255,0.6) !important;
-          font-size: 13px !important;
+          padding: 9px 14px !important;
           display: flex !important;
           align-items: center !important;
           gap: 10px !important;
           cursor: pointer !important;
-          transition: background 0.14s ease, color 0.14s ease !important;
-          border-radius: 0 !important;
+          color: rgba(255,255,255,0.62) !important;
+          font-size: 13px !important;
+          font-weight: 400 !important;
+          letter-spacing: 0.01em !important;
+          border-left: 2px solid transparent !important;
+          transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease !important;
+          position: relative !important;
         }
         .iti__country:hover {
-          background: rgba(34,211,238,0.08) !important;
+          background: rgba(34,211,238,0.06) !important;
           color: rgba(255,255,255,0.92) !important;
+          border-left-color: rgba(34,211,238,0.45) !important;
         }
         .iti__country.iti__highlight {
-          background: rgba(34,211,238,0.13) !important;
+          background: rgba(34,211,238,0.1) !important;
           color: #fff !important;
-        }
-        .iti__flag-box {
-          flex-shrink: 0;
-          line-height: 1;
-        }
-        .iti__country-name {
-          color: inherit !important;
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .iti__dial-code {
-          color: rgba(255,255,255,0.28) !important;
-          font-size: 12px !important;
-          flex-shrink: 0;
+          border-left-color: hsl(188 86% 53%) !important;
         }
 
-        /* ── Divider ── */
+        /* Flag cell — fixed 20px so all names align */
+        .iti__flag-box {
+          flex-shrink: 0 !important;
+          width: 20px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          line-height: 1 !important;
+        }
+
+        /* Country name — fills remaining space */
+        .iti__country-name {
+          flex: 1 !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+          color: inherit !important;
+        }
+
+        /* Dial code — pill badge aligned right */
+        .iti__dial-code {
+          flex-shrink: 0 !important;
+          font-size: 11px !important;
+          font-weight: 500 !important;
+          letter-spacing: 0.03em !important;
+          color: rgba(255,255,255,0.22) !important;
+          background: rgba(255,255,255,0.05) !important;
+          border: 1px solid rgba(255,255,255,0.07) !important;
+          border-radius: 5px !important;
+          padding: 1px 6px !important;
+          transition: color 0.16s ease, background 0.16s ease !important;
+        }
+        .iti__country:hover .iti__dial-code {
+          color: rgba(34,211,238,0.7) !important;
+          background: rgba(34,211,238,0.07) !important;
+          border-color: rgba(34,211,238,0.2) !important;
+        }
+        .iti__country.iti__highlight .iti__dial-code {
+          color: hsl(188 86% 65%) !important;
+          background: rgba(34,211,238,0.1) !important;
+          border-color: rgba(34,211,238,0.25) !important;
+        }
+
+        /* ── Divider between preferred + full list ── */
         .iti__divider {
+          border: none !important;
           border-top: 1px solid rgba(255,255,255,0.05) !important;
-          margin: 5px 0 !important;
+          margin: 4px 14px !important;
         }
       `}</style>
     </div>
