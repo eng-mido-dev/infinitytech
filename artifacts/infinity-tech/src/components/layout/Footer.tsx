@@ -1,78 +1,65 @@
-import { Mail, MapPin } from "lucide-react";
 import { Link } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Signature } from "@/components/ui/Signature";
 
-/* ─── navigation ─────────────────────────────────────────── */
-const navLinks = [
+// ── English data ──────────────────────────────────────────────────────────────
+const navLinksEN = [
   { label: "Home",     href: "/" },
   { label: "Projects", href: "/projects" },
   { label: "About",    href: "/about" },
   { label: "Contact",  href: "/contact" },
 ];
 
-/* ─── core competencies ──────────────────────────────────── */
-const competencies = [
-  {
-    en: "Embedded Intelligence & Firmware",
-    ar: "أنظمة التحكم المدمجة",
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-3.5 h-3.5 flex-shrink-0 text-primary/70" aria-hidden>
-        <rect x="4" y="4" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
-        <rect x="7" y="7" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.1" />
-        <path d="M4 8H2M4 12H2M16 8h2M16 12h2M8 4V2M12 4V2M8 16v2M12 16v2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    en: "Strategic Communication Systems",
-    ar: "أنظمة الاتصالات السيادية",
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-3.5 h-3.5 flex-shrink-0 text-primary/70" aria-hidden>
-        <circle cx="10" cy="10" r="2" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M6.5 13.5a5 5 0 0 1 0-7M13.5 6.5a5 5 0 0 1 0 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        <path d="M4 16a8 8 0 0 1 0-12M16 4a8 8 0 0 1 0 12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    en: "Electronic Warfare & Signal Security",
-    ar: "الحرب الإلكترونية وتأمين الإشارات",
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-3.5 h-3.5 flex-shrink-0 text-primary/70" aria-hidden>
-        <path d="M10 2.5L3 6.5v4c0 3.5 2.8 6.7 7 7.5 4.2-.8 7-4 7-7.5v-4L10 2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-        <path d="M7 10l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-  },
-  {
-    en: "Custom Industrial Hardware",
-    ar: "تصميم العتاد الصناعي المتكامل",
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-3.5 h-3.5 flex-shrink-0 text-primary/70" aria-hidden>
-        <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M10 1v3M10 16v3M1 10h3M16 10h3M3.22 3.22l2.12 2.12M14.66 14.66l2.12 2.12M3.22 16.78l2.12-2.12M14.66 5.34l2.12-2.12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      </svg>
-    ),
-  },
+const servicesEN = [
+  "PCB Design & Layout",
+  "Embedded Systems",
+  "AI Applications",
+  "Electronic Warfare",
+  "Signal Security",
 ];
 
-/* ─── socials ────────────────────────────────────────────── */
+// ── Arabic data ───────────────────────────────────────────────────────────────
+const navLinksAR = [
+  { label: "الرئيسية",     href: "/" },
+  { label: "المشاريع",     href: "/projects" },
+  { label: "من نحن",      href: "/about" },
+  { label: "اتصل بنا",   href: "/contact" },
+];
+
+const servicesAR = [
+  "تصميم PCB والدوائر المتكاملة",
+  "الأنظمة المدمجة والبرمجيات",
+  "تطبيقات الذكاء الاصطناعي",
+  "الحرب الإلكترونية",
+  "تأمين الإشارات والاتصالات",
+];
+
+// ── Shared socials ─────────────────────────────────────────────────────────────
 const socials = [
-  {
-    label: "GitHub",
-    href: "https://github.com/infinitytech-dev",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden>
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-      </svg>
-    ),
-  },
   {
     label: "LinkedIn",
     href: "https://linkedin.com/in/fares-salah-eng",
     icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden>
-        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+      <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17" aria-hidden>
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>
+    ),
+  },
+  {
+    label: "GitHub",
+    href: "https://github.com/infinitytech-dev",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17" aria-hidden>
+        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+      </svg>
+    ),
+  },
+  {
+    label: "WhatsApp",
+    href: "https://wa.me/201000000000",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17" aria-hidden>
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
       </svg>
     ),
   },
@@ -80,59 +67,205 @@ const socials = [
     label: "Email",
     href: "mailto:admin.infinity.tech@gmail.com",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points="22,6 12,13 2,6" strokeLinecap="round" strokeLinejoin="round" />
+      <svg viewBox="0 0 24 24" fill="none" width="17" height="17" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="22,6 12,13 2,6" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
   },
 ];
 
-/* ─── component ──────────────────────────────────────────── */
-export function Footer() {
+// ── Shared chevron ────────────────────────────────────────────────────────────
+function ChevronLink({ href, children, isRTL }: { href: string; children: React.ReactNode; isRTL: boolean }) {
   return (
-    <footer dir="ltr" className="relative bg-[#0A0E13] mt-auto overflow-hidden">
-      {/* Top accent line */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[rgba(34,211,238,0.25)] to-transparent" />
-
-      {/* Background watermark */}
-      <div
-        aria-hidden
-        className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
+    <li>
+      <Link
+        href={href}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexDirection: isRTL ? "row-reverse" : "row",
+          justifyContent: isRTL ? "flex-end" : "flex-start",
+          fontSize: 13,
+          color: "rgba(255,255,255,0.45)",
+          textDecoration: "none",
+          transition: "color 0.2s ease",
+          lineHeight: 1.6,
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "hsl(188 86% 53%)"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
       >
-        <span
-          className="text-[clamp(4rem,14vw,10rem)] font-black uppercase whitespace-nowrap"
-          style={{
-            color: "rgba(34,211,238,0.03)",
-            WebkitTextStroke: "1.5px rgba(34,211,238,0.12)",
-            letterSpacing: "-0.04em",
-            userSelect: "none",
-          }}
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="hsl(188 86% 53%)" strokeWidth="2.5" strokeLinecap="round"
+          style={{ opacity: 0.6, flexShrink: 0, transform: isRTL ? "rotate(180deg)" : undefined }}
         >
-          INFINITY TECH
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        {children}
+      </Link>
+    </li>
+  );
+}
+
+// ── Service item ──────────────────────────────────────────────────────────────
+function ServiceItem({ label, isRTL }: { label: string; isRTL: boolean }) {
+  return (
+    <li style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexDirection: isRTL ? "row-reverse" : "row",
+      justifyContent: isRTL ? "flex-end" : "flex-start",
+      fontSize: 13,
+      color: "rgba(255,255,255,0.45)",
+      lineHeight: 1.7,
+    }}>
+      <span style={{
+        width: 4, height: 4, borderRadius: "50%", flexShrink: 0,
+        background: "hsl(188 86% 53% / 0.6)",
+      }}/>
+      {label}
+    </li>
+  );
+}
+
+// ── Column heading ────────────────────────────────────────────────────────────
+function ColHead({ children, isRTL }: { children: React.ReactNode; isRTL: boolean }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <p style={{
+        fontSize: 10,
+        letterSpacing: isRTL ? "0.05em" : "0.18em",
+        fontWeight: 700,
+        textTransform: isRTL ? undefined : "uppercase",
+        color: "rgba(255,255,255,0.3)",
+        margin: 0,
+        textAlign: isRTL ? "right" : "left",
+        fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+      }}>
+        {children}
+      </p>
+      <div style={{
+        marginTop: 8,
+        width: 20,
+        height: 1.5,
+        borderRadius: 2,
+        background: "linear-gradient(90deg, hsl(188 86% 53% / 0.7), transparent)",
+        marginLeft: isRTL ? "auto" : undefined,
+        transform: isRTL ? "scaleX(-1)" : undefined,
+      }}/>
+    </div>
+  );
+}
+
+// ── Main footer ───────────────────────────────────────────────────────────────
+export function Footer() {
+  const { isRTL, lang } = useLanguage();
+
+  const navLinks = isRTL ? navLinksAR : navLinksEN;
+  const services  = isRTL ? servicesAR : servicesEN;
+
+  return (
+    <footer
+      dir={isRTL ? "rtl" : "ltr"}
+      style={{
+        position: "relative",
+        background: "rgba(10,14,19,0.97)",
+        backdropFilter: "blur(15px)",
+        WebkitBackdropFilter: "blur(15px)",
+        borderTop: "1px solid rgba(255,255,255,0.05)",
+        marginTop: "auto",
+        overflow: "hidden",
+        fontFamily: isRTL
+          ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif"
+          : "'Inter', sans-serif",
+      }}
+    >
+      {/* Top accent gradient */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 1,
+        background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.3) 50%, transparent)",
+        pointerEvents: "none",
+      }}/>
+
+      {/* Watermark */}
+      <div aria-hidden style={{
+        pointerEvents: "none",
+        userSelect: "none",
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}>
+        <span style={{
+          fontSize: "clamp(3.5rem,12vw,9rem)",
+          fontWeight: 900,
+          letterSpacing: "-0.04em",
+          whiteSpace: "nowrap",
+          color: "rgba(34,211,238,0.025)",
+          WebkitTextStroke: "1.5px rgba(34,211,238,0.1)",
+        }}>
+          {isRTL ? "إنفينيتي تيك" : "INFINITY TECH"}
         </span>
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+      {/* ── Main grid ── */}
+      <div style={{
+        position: "relative",
+        maxWidth: 1200,
+        margin: "0 auto",
+        padding: "64px 24px 48px",
+      }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "40px 48px",
+        }}>
 
-          {/* ── Col 1: Brand + tagline + socials ── */}
-          <div className="lg:col-span-1 space-y-5">
-            <div>
-              <span className="text-xl font-black tracking-tight text-foreground">
-                Infinity <span className="font-light text-muted-foreground">Tech</span>
+          {/* ── Col 1: Brand ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Logo */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: isRTL ? "flex-end" : "flex-start" }}>
+              <svg width="20" height="20" viewBox="0 0 48 48" fill="none" aria-hidden>
+                <defs>
+                  <linearGradient id="fg" x1="7" y1="0" x2="41" y2="0" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stopColor="#22D3EE" stopOpacity="0.5"/>
+                    <stop offset="0.5" stopColor="#22D3EE" stopOpacity="1"/>
+                    <stop offset="1" stopColor="#22D3EE" stopOpacity="0.5"/>
+                  </linearGradient>
+                </defs>
+                <path d="M 7 24 C 7 20 9.5 17 13.5 17 C 17.5 17 20.5 20.5 24 24 C 27.5 27.5 30.5 31 34.5 31 C 38.5 31 41 28 41 24 C 41 20 38.5 17 34.5 17 C 30.5 17 27.5 20.5 24 24 C 20.5 27.5 17.5 31 13.5 31 C 9.5 31 7 28 7 24 Z" stroke="url(#fg)" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+              <span style={{
+                fontSize: 15, fontWeight: 800, letterSpacing: "0.07em",
+                color: "#e2e8f0",
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}>
+                INFINITY<span style={{ color: "hsl(188 86% 53%)" }}>.</span>TECH
               </span>
             </div>
 
-            <p
-              className="text-[13px] text-muted-foreground/80 leading-relaxed tracking-wide"
-              style={{ letterSpacing: "0.035em" }}
-            >
-              Architecting mission-critical infrastructure through advanced Embedded Systems,
-              Cyber-Physical Security, and Sovereign Communication Layers.
+            {/* Bio */}
+            <p style={{
+              fontSize: 13,
+              color: "rgba(255,255,255,0.38)",
+              lineHeight: 1.8,
+              margin: 0,
+              textAlign: isRTL ? "right" : "left",
+              maxWidth: 260,
+              marginLeft: isRTL ? "auto" : undefined,
+            }}>
+              {isRTL
+                ? "نصمم وننفذ أنظمة إلكترونية متكاملة — من لوحات PCB عالية الدقة إلى أنظمة الذكاء الاصطناعي المدمج وحلول الاتصالات السيادية."
+                : "Architecting mission-critical infrastructure through advanced Embedded Systems, Cyber-Physical Security, and Sovereign Communication Layers."}
             </p>
 
-            <div className="flex items-center gap-2 pt-1">
+            {/* Socials */}
+            <div style={{ display: "flex", gap: 8, justifyContent: isRTL ? "flex-end" : "flex-start", flexWrap: "wrap" }}>
               {socials.map(({ icon, href, label }) => (
                 <a
                   key={label}
@@ -140,7 +273,32 @@ export function Footer() {
                   target={href.startsWith("http") ? "_blank" : undefined}
                   rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                   aria-label={label}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors duration-200"
+                  title={label}
+                  style={{
+                    width: 36, height: 36,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,0.4)",
+                    textDecoration: "none",
+                    transition: "border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease",
+                    backdropFilter: "blur(8px)",
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.borderColor = "rgba(34,211,238,0.45)";
+                    el.style.color = "hsl(188 86% 53%)";
+                    el.style.background = "rgba(34,211,238,0.08)";
+                    el.style.boxShadow = "0 0 12px rgba(34,211,238,0.15)";
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.borderColor = "rgba(255,255,255,0.1)";
+                    el.style.color = "rgba(255,255,255,0.4)";
+                    el.style.background = "rgba(255,255,255,0.04)";
+                    el.style.boxShadow = "none";
+                  }}
                 >
                   {icon}
                 </a>
@@ -148,79 +306,98 @@ export function Footer() {
             </div>
           </div>
 
-          {/* ── Col 2: Explore nav ── */}
-          <div className="space-y-4">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
-              Explore
-            </p>
-            <ul className="space-y-3">
+          {/* ── Col 2: Services / الخدمات ── */}
+          <div>
+            <ColHead isRTL={isRTL}>{isRTL ? "الخدمات" : "Services"}</ColHead>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+              {services.map(s => (
+                <ServiceItem key={s} label={s} isRTL={isRTL} />
+              ))}
+            </ul>
+          </div>
+
+          {/* ── Col 3: Quick links / روابط سريعة ── */}
+          <div>
+            <ColHead isRTL={isRTL}>{isRTL ? "روابط سريعة" : "Explore"}</ColHead>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               {navLinks.map(({ label, href }) => (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors duration-200"
-                  >
-                    {label}
-                  </Link>
-                </li>
+                <ChevronLink key={href} href={href} isRTL={isRTL}>{label}</ChevronLink>
               ))}
+              {isRTL && (
+                <ChevronLink href="/contact" isRTL={isRTL}>سياسة الخصوصية</ChevronLink>
+              )}
             </ul>
           </div>
 
-          {/* ── Col 3: Core Competencies ── */}
-          <div className="space-y-4">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
-              Core Competencies
-            </p>
-            <ul className="space-y-4">
-              {competencies.map(({ en, ar, icon }) => (
-                <li key={en} className="flex items-start gap-2.5">
-                  <span className="mt-[3px]">{icon}</span>
-                  <span className="flex flex-col gap-[2px]">
-                    <span className="text-[12.5px] font-medium text-foreground/80 leading-snug">
-                      {en}
-                    </span>
-                    <span
-                      className="text-[11px] text-muted-foreground/55 leading-snug"
-                      style={{
-                        fontFamily: "var(--font-arabic), 'IBM Plex Sans Arabic', sans-serif",
-                        direction: "rtl",
-                        textAlign: "right",
-                      }}
-                    >
-                      {ar}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* ── Col 4: Contact / تواصل معنا ── */}
+          <div>
+            <ColHead isRTL={isRTL}>{isRTL ? "تواصل معنا" : "Get In Touch"}</ColHead>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* ── Col 4: Contact ── */}
-          <div className="space-y-4">
-            <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
-              Get In Touch
-            </p>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 text-primary flex-shrink-0" />
-                <span className="text-[13px] text-muted-foreground tracking-wide break-all">
-                  admin.infinity.tech@gmail.com
-                </span>
+              <a
+                href="mailto:admin.infinity.tech@gmail.com"
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  flexDirection: isRTL ? "row-reverse" : "row",
+                  color: "rgba(255,255,255,0.4)", textDecoration: "none",
+                  fontSize: 13, transition: "color 0.2s ease",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "hsl(188 86% 53%)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.4)"; }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" width="15" height="15" stroke="hsl(188 86% 53%)" strokeWidth="1.75">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" strokeLinecap="round" strokeLinejoin="round"/>
+                  <polyline points="22,6 12,13 2,6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{ wordBreak: "break-all" }}>admin.infinity.tech@gmail.com</span>
+              </a>
+
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10,
+                flexDirection: isRTL ? "row-reverse" : "row",
+                fontSize: 13, color: "rgba(255,255,255,0.4)",
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" width="15" height="15" stroke="hsl(188 86% 53%)" strokeWidth="1.75">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="10" r="3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span>{isRTL ? "الإسكندرية، مصر" : "Alexandria, Egypt"}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
-                <span className="text-[13px] text-muted-foreground tracking-wide">
-                  Alexandria, Egypt
-                </span>
-              </div>
-            </div>
-            <div className="pt-2">
+
               <Link
                 href="/contact"
-                className="inline-block border border-primary/40 text-primary hover:bg-primary/10 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-200"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  marginTop: 4,
+                  padding: "8px 18px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(34,211,238,0.35)",
+                  background: "rgba(34,211,238,0.06)",
+                  color: "hsl(188 86% 53%)",
+                  fontSize: 13, fontWeight: 600,
+                  textDecoration: "none",
+                  backdropFilter: "blur(10px)",
+                  transition: "background 0.2s ease, box-shadow 0.2s ease",
+                  alignSelf: isRTL ? "flex-end" : "flex-start",
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = "rgba(34,211,238,0.14)";
+                  el.style.boxShadow = "0 0 18px rgba(34,211,238,0.2)";
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.background = "rgba(34,211,238,0.06)";
+                  el.style.boxShadow = "none";
+                }}
               >
-                Send a Message
+                <svg viewBox="0 0 24 24" fill="none" width="13" height="13" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                {isRTL ? "أرسل رسالة" : "Send a Message"}
               </Link>
             </div>
           </div>
@@ -229,32 +406,56 @@ export function Footer() {
       </div>
 
       {/* ── Bottom bar ── */}
-      <div className="relative border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground/50">
-            &copy; {new Date().getFullYear()} Infinity Tech. All rights reserved.
+      <div style={{
+        position: "relative",
+        borderTop: "1px solid rgba(255,255,255,0.05)",
+      }}>
+        <div style={{
+          maxWidth: 1200,
+          margin: "0 auto",
+          padding: "20px 24px",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}>
+          <p style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.22)",
+            margin: 0,
+            order: isRTL ? 2 : 1,
+            fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+          }}>
+            {isRTL
+              ? `© ${new Date().getFullYear()} إنفينيتي تيك. جميع الحقوق محفوظة.`
+              : `© ${new Date().getFullYear()} Infinity Tech. All rights reserved.`}
           </p>
-          <Signature size="sm" opacity={0.35} color="#22D3EE" rotate={-3} animate={false} />
 
-          {/* Hidden admin access — discreet lock icon */}
+          <div style={{ order: isRTL ? 1 : 2 }}>
+            <Signature size="sm" opacity={0.3} color="#22D3EE" rotate={-3} animate={false} />
+          </div>
+
+          {/* Discreet admin access */}
           <Link
             href="/admin"
             aria-label="System access"
-            className="absolute bottom-5 right-4 sm:right-6 lg:right-8 opacity-[0.12] hover:opacity-[0.35] transition-opacity duration-500 cursor-pointer"
+            style={{
+              position: "absolute",
+              bottom: 16,
+              right: isRTL ? undefined : 24,
+              left: isRTL ? 24 : undefined,
+              opacity: 0.1,
+              transition: "opacity 0.5s ease",
+              cursor: "pointer",
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.35"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.1"; }}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-muted-foreground"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "rgba(255,255,255,0.6)" }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
           </Link>
         </div>
