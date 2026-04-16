@@ -244,13 +244,34 @@ interface ItiPhoneFieldProps {
   resetTrigger: number;
   onItiReady: (iti: ReturnType<typeof intlTelInput>) => void;
   onClearError: () => void;
+  isRTL: boolean;
+  lang: string;
 }
 
-function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }: ItiPhoneFieldProps) {
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const itiRef    = useRef<ReturnType<typeof intlTelInput> | null>(null);
+function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError, isRTL, lang }: ItiPhoneFieldProps) {
+  const inputRef      = useRef<HTMLInputElement>(null);
+  const itiRef        = useRef<ReturnType<typeof intlTelInput> | null>(null);
+  const searchElRef   = useRef<HTMLInputElement | null>(null);
+  const isRTLRef      = useRef(isRTL);
+  const langRef       = useRef(lang);
   const [focused,    setFocused]    = useState(false);
   const [validState, setValidState] = useState<"idle" | "valid" | "invalid">("idle");
+
+  // Keep refs in sync with current prop values (needed inside stable event-listener closures)
+  useEffect(() => { isRTLRef.current = isRTL; langRef.current = lang; }, [isRTL, lang]);
+
+  /** Push dir + placeholder onto the ITI-rendered search <input> */
+  const syncSearch = (rtl: boolean, language: string) => {
+    if (!searchElRef.current) {
+      // Lazy-find: the dropdown lives inside the nearest .iti ancestor
+      const itiRoot = inputRef.current?.closest(".iti");
+      searchElRef.current = itiRoot?.querySelector<HTMLInputElement>(".iti__search-input") ?? null;
+    }
+    const el = searchElRef.current;
+    if (!el) return;
+    el.dir         = rtl ? "rtl" : "ltr";
+    el.placeholder = language === "ar" ? "ابحث عن دولة..." : "Search country...";
+  };
 
   // Reset internal state when parent signals a form reset
   useEffect(() => {
@@ -258,6 +279,12 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
     setValidState("idle");
     if (inputRef.current) inputRef.current.value = "";
   }, [resetTrigger]);
+
+  // Re-sync search input whenever language toggles (works even if dropdown is not open)
+  useEffect(() => {
+    syncSearch(isRTL, lang);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRTL, lang]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -279,6 +306,13 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
     itiRef.current = iti;
     onItiReady(iti);
 
+    // Sync after a tick (the dropdown DOM is rendered immediately but may need a frame)
+    const t = setTimeout(() => syncSearch(isRTLRef.current, langRef.current), 60);
+
+    // Also re-sync every time the user opens the dropdown (catches lazy renders)
+    const onOpen = () => syncSearch(isRTLRef.current, langRef.current);
+    el.addEventListener("open:countrydropdown", onOpen);
+
     const checkValidity = () => {
       onClearError();
       const raw = el.value.trim();
@@ -290,6 +324,8 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
     el.addEventListener("countrychange", checkValidity);
 
     return () => {
+      clearTimeout(t);
+      el.removeEventListener("open:countrydropdown", onOpen);
       el.removeEventListener("input", checkValidity);
       el.removeEventListener("countrychange", checkValidity);
       iti.destroy();
@@ -533,15 +569,18 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         }
 
         /* ════════════════════════════════════════════════════════════════
-           SEARCH BAR
-           v27 structure:
-             .iti__search-input-wrapper   (flex row, position:relative)
-               .iti__search-icon          (position:absolute, left icon)
-               input.iti__search-input    (the text field)
-               button.iti__search-clear   (position:absolute, X button)
+           SEARCH BAR — v27 DOM structure:
+             .iti__search-input-wrapper (position:relative, flex)
+               .iti__search-icon        (position:absolute — magnifying glass SVG)
+               input.iti__search-input  (the text field)
+               button.iti__search-clear (position:absolute — X button)
+
+           Icon/button positioning adapts to text direction automatically:
+             LTR → glass on LEFT,  X on RIGHT
+             RTL → glass on RIGHT, X on LEFT  (via [dir=rtl] selectors)
         ════════════════════════════════════════════════════════════════ */
 
-        /* Wrapper: remove the gray bottom border, add dark separator */
+        /* Wrapper: dark separator below, padding creates breathing room */
         .iti__search-input-wrapper {
           border-bottom: 1px solid rgba(255,255,255,0.06) !important;
           background: transparent !important;
@@ -551,19 +590,19 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           align-items: center !important;
         }
 
-        /* The actual text input — NO background-image (icon is a sibling SVG) */
+        /* ── Text input — NO background-image (icon is a real sibling SVG) ── */
         .iti__search-input {
           background: rgba(8, 10, 16, 0.85) !important;
           background-color: rgba(8, 10, 16, 0.85) !important;
           background-image: none !important;
-          border: 1px solid rgba(255,255,255,0.1) !important;
+          border: 1px solid rgba(34,211,238,0.18) !important;
           border-radius: 8px !important;
-          color: rgba(255,255,255,0.88) !important;
+          color: rgba(255,255,255,0.9) !important;
           font-size: 13px !important;
           font-weight: 400 !important;
           letter-spacing: 0.01em !important;
-          /* space for left icon + space for right clear btn */
-          padding: 8px 34px 8px 34px !important;
+          /* 40px on both sides keeps text clear of either icon */
+          padding: 9px 40px !important;
           outline: none !important;
           font-family: inherit !important;
           box-sizing: border-box !important;
@@ -572,20 +611,25 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           margin: 0 0 10px !important;
           -webkit-appearance: none !important;
           appearance: none !important;
-          transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
+          line-height: 1.4 !important;
+          transition: border-color 0.22s ease !important;
         }
         .iti__search-input::placeholder {
           color: rgba(255,255,255,0.22) !important;
           font-style: normal !important;
         }
+        /* Focus: only brighten the border, NO outer glow / box-shadow */
         .iti__search-input:focus {
-          border-color: rgba(34,211,238,0.32) !important;
+          border-color: hsl(188 86% 53%) !important;
           background-color: rgba(8, 10, 16, 0.95) !important;
-          box-shadow: 0 0 0 3px rgba(34,211,238,0.06) !important;
+          box-shadow: none !important;
+          outline: none !important;
         }
-        /* Suppress browser native search-cancel on webkit */
+        /* Suppress browser native search-cancel / decoration on webkit */
         .iti__search-input::-webkit-search-cancel-button,
-        .iti__search-input::-webkit-search-decoration {
+        .iti__search-input::-webkit-search-decoration,
+        .iti__search-input::-webkit-search-results-button,
+        .iti__search-input::-webkit-search-results-decoration {
           -webkit-appearance: none !important;
           display: none !important;
         }
@@ -595,31 +639,36 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
         .iti__search-input:-webkit-autofill:active {
           -webkit-background-clip: text !important;
           background-clip: text !important;
-          -webkit-text-fill-color: rgba(255,255,255,0.88) !important;
+          -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
           -webkit-box-shadow: 0 0 0px 1000px #080a10 inset !important;
           transition: background-color 9999s ease-in-out 0s !important;
         }
 
-        /* Left search icon — style the library's own SVG */
+        /* ── Magnifying-glass icon (LTR: left side) ── */
         .iti__search-icon {
           left: 20px !important;
+          right: auto !important;
           top: 50% !important;
           transform: translateY(-50%) !important;
           pointer-events: none !important;
           z-index: 1 !important;
+          /* offset for the input's bottom margin so icon stays on the input */
+          margin-bottom: 10px !important;
         }
         .iti__search-icon-svg {
-          stroke: rgba(148,175,202,0.5) !important;
-          width: 14px !important;
-          height: 14px !important;
+          stroke: rgba(148,175,202,0.55) !important;
+          width: 15px !important;
+          height: 15px !important;
+          display: block !important;
         }
         .iti__search-input-wrapper:focus-within .iti__search-icon-svg {
-          stroke: rgba(34,211,238,0.55) !important;
+          stroke: hsl(188 86% 53%) !important;
         }
 
-        /* Right clear (X) button */
+        /* ── Clear (X) button (LTR: right side) ── */
         .iti__search-clear {
           right: 20px !important;
+          left: auto !important;
           top: 50% !important;
           transform: translateY(-50%) !important;
           background: transparent !important;
@@ -627,6 +676,7 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           padding: 4px !important;
           border-radius: 4px !important;
           cursor: pointer !important;
+          margin-bottom: 10px !important;
           transition: background 0.18s ease !important;
         }
         .iti__search-clear:hover,
@@ -634,9 +684,31 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError }:
           background: rgba(255,255,255,0.08) !important;
           outline: none !important;
         }
-        .iti__search-clear-svg { width: 13px !important; height: 13px !important; }
+        .iti__search-clear-svg { width: 13px !important; height: 13px !important; display: block !important; }
         .iti__search-clear .iti__search-clear-bg { fill: rgba(148,175,202,0.5) !important; }
-        .iti__search-clear:hover .iti__search-clear-bg { fill: rgba(200,225,240,0.7) !important; }
+        .iti__search-clear:hover .iti__search-clear-bg { fill: rgba(200,225,240,0.72) !important; }
+
+        /* ── RTL: mirror icon placement ───────────────────────────────────
+           When the page (or the search input itself) is in RTL mode,
+           swap the magnifying glass to the right and the X to the left.
+           Both [dir=rtl] on the page AND input[dir=rtl] are handled.
+        ─────────────────────────────────────────────────────────────── */
+        [dir="rtl"] .iti__search-icon,
+        .iti__search-input-wrapper:has(.iti__search-input[dir="rtl"]) .iti__search-icon {
+          left: auto !important;
+          right: 20px !important;
+        }
+        [dir="rtl"] .iti__search-input,
+        .iti__search-input[dir="rtl"] {
+          padding-left: 40px !important;
+          padding-right: 40px !important;
+          text-align: right !important;
+        }
+        [dir="rtl"] .iti__search-clear,
+        .iti__search-input-wrapper:has(.iti__search-input[dir="rtl"]) .iti__search-clear {
+          right: auto !important;
+          left: 20px !important;
+        }
 
         /* ── Country rows — ruler-straight three-column layout ── */
         .iti__country {
@@ -739,7 +811,7 @@ export function Contact() {
   const [phoneError,    setPhoneError]    = useState("");
   const [isSending,     setIsSending]     = useState(false);
   const [resetTrigger,  setResetTrigger]  = useState(0);
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, lang } = useLanguage();
   const itiRef = useRef<ReturnType<typeof intlTelInput> | null>(null);
   const handleItiReady = (iti: ReturnType<typeof intlTelInput>) => { itiRef.current = iti; };
 
@@ -868,6 +940,8 @@ export function Contact() {
                     resetTrigger={resetTrigger}
                     onItiReady={handleItiReady}
                     onClearError={() => setPhoneError("")}
+                    isRTL={isRTL}
+                    lang={lang}
                   />
                 </div>
 
