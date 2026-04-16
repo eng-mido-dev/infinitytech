@@ -139,6 +139,44 @@ function useStackedTypewriter() {
 }
 
 /*
+ * Arabic static headline — mirrors StackedHeadline visually but uses static
+ * text since cursive-connected Arabic glyphs look broken mid-typewriter.
+ * Last word gets the primary cyan + glow treatment identical to the EN version.
+ */
+const ARABIC_WORDS = [
+  { text: "التصميم",  accent: false },
+  { text: "الدقة",    accent: false },
+  { text: "الأداء",   accent: true  },
+] as const;
+
+function ArabicHeadline({ align = "right" }: { align?: "right" | "center" }) {
+  const fs = align === "center"
+    ? "clamp(2.2rem, 9vw, 3.2rem)"
+    : "clamp(2.8rem, 4.6vw, 4.4rem)";
+
+  return (
+    <div style={{ display: "inline-block", textAlign: align }}>
+      {ARABIC_WORDS.map(({ text, accent }) => (
+        <div key={text} style={{ lineHeight: "1.12", marginBottom: "0.04em" }}>
+          <span
+            className="font-black tracking-tight block"
+            style={{
+              fontSize: fs,
+              fontFamily: "'Cairo', 'IBM Plex Sans Arabic', sans-serif",
+              letterSpacing: "0.01em",
+              color: accent ? "hsl(var(--primary))" : "hsl(var(--foreground))",
+              textShadow: accent ? "0 0 40px rgba(34,211,238,0.45)" : undefined,
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/*
  * Shared headline component — used by both mobile and desktop layouts.
  * Each word line is pre-allocated via an invisible full-word anchor span,
  * so the container dimensions never change during typing.
@@ -228,7 +266,7 @@ export function Home() {
   const { data: projects, isLoading } = useProjects();
   const featuredProjects = projects?.slice(0, 3) || [];
   const { displayed: codeDisplayed, done: codeDone } = useCodeTypewriter(CODE_SNIPPET, 600);
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
 
   return (
     <div className="w-full flex flex-col min-h-screen">
@@ -240,8 +278,10 @@ export function Home() {
       />
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      {/* dir="ltr" locks the hero to English layout regardless of the AR/EN toggle */}
-      <section dir="ltr" className="relative w-full lg:h-[100dvh] overflow-hidden flex flex-col">
+      <section
+        dir={isRTL ? "rtl" : "ltr"}
+        className="relative w-full lg:h-[100dvh] overflow-hidden flex flex-col"
+      >
 
         {/* Background glow */}
         <div
@@ -256,31 +296,52 @@ export function Home() {
         <div className="flex-none h-16" />
 
         {/* ── MOBILE layout (< lg): natural flow ── */}
-        <div className="lg:hidden flex flex-col items-center text-center px-4 sm:px-6 pt-6 sm:pt-8 pb-12 sm:pb-16 relative z-10">
+        <div
+          className="lg:hidden flex flex-col px-4 sm:px-6 pt-6 sm:pt-8 pb-12 sm:pb-16 relative z-10"
+          style={{
+            alignItems: isRTL ? "flex-end" : "center",
+            textAlign: isRTL ? "right" : "center",
+          }}
+        >
 
           {/* Badge */}
-          <motion.div {...fadeUp(0)} className="inline-flex self-center items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border backdrop-blur-[8px] mb-4">
+          <motion.div
+            {...fadeUp(0)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border backdrop-blur-[8px] mb-4"
+            style={{ alignSelf: isRTL ? "flex-end" : "center" }}
+          >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.18em]">
-              Hardware Eng &amp; PCB Design
+            <span
+              className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.18em]"
+              style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
+            >
+              {isRTL ? "هندسة الأجهزة وتصميم PCB" : "Hardware Eng & PCB Design"}
             </span>
           </motion.div>
 
           {/* Stacked headline — mobile */}
           <h1
-            className="mb-6 text-center select-none"
-            aria-label="Design · Precision · Performance"
+            className="mb-6 select-none"
+            style={{ textAlign: isRTL ? "right" : "center" }}
+            aria-label={isRTL ? "التصميم · الدقة · الأداء" : "Design · Precision · Performance"}
           >
-            <StackedHeadline align="center" />
+            {isRTL
+              ? <ArabicHeadline align="center" />
+              : <StackedHeadline align="center" />
+            }
           </h1>
 
           {/* Subtitle */}
           <motion.p
             {...fadeUp(0.38)}
             className="text-sm sm:text-[15px] text-muted-foreground leading-[1.75] mb-7 max-w-lg"
+            style={{
+              textAlign: isRTL ? "right" : "center",
+              fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+            }}
           >
             {t(
               <>
@@ -308,18 +369,22 @@ export function Home() {
           <motion.div
             {...fadeUp(0.44)}
             className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto"
+            style={{ flexDirection: isRTL ? "row-reverse" : undefined } as React.CSSProperties}
           >
             <Link
               href="/projects"
               className="px-7 py-3.5 bg-primary text-primary-foreground font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors duration-200 text-[15px]"
+              style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
             >
-              {t("View Projects", "استعرض المشاريع")} <ArrowRight className="w-4 h-4" />
+              {t("View Projects", "استعرض المشاريع")}
+              <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ transform: isRTL ? "scaleX(-1)" : "none" }} />
             </Link>
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 px-7 py-3.5 bg-card border border-border text-foreground font-semibold rounded-xl hover:bg-white/5 transition-colors duration-200 text-center text-[15px]"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-card border border-border text-foreground font-semibold rounded-xl hover:bg-white/5 transition-colors duration-200 text-[15px]"
+              style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
             >
-              <Mail className="w-4 h-4 text-primary" />
+              <Mail className="w-4 h-4 text-primary flex-shrink-0" />
               {t("Contact", "تواصل معي")}
             </Link>
           </motion.div>
@@ -331,29 +396,48 @@ export function Home() {
           <div className="max-w-7xl mx-auto w-full">
             <div className="grid grid-cols-12 gap-10 xl:gap-14 items-center">
 
-              {/* Left column */}
-              <div className="col-span-7 flex flex-col items-start">
-                <motion.div {...fadeUp(0)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border backdrop-blur-[8px] mb-4">
+              {/* Text column — order 1 in EN (left), order 2 in AR (right) */}
+              <div
+                className="col-span-7 flex flex-col"
+                style={{
+                  alignItems: isRTL ? "flex-end" : "flex-start",
+                  order: isRTL ? 2 : 1,
+                }}
+              >
+                <motion.div
+                  {...fadeUp(0)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 border border-border backdrop-blur-[8px] mb-4"
+                >
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                   </span>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.18em]">
-                    Hardware Eng &amp; PCB Design
+                  <span
+                    className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.18em]"
+                    style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
+                  >
+                    {isRTL ? "هندسة الأجهزة وتصميم PCB" : "Hardware Eng & PCB Design"}
                   </span>
                 </motion.div>
 
-                {/* Stacked headline — desktop */}
+                {/* Headline — Arabic static or English typewriter */}
                 <h1
                   className="mb-6 select-none"
-                  aria-label="Design · Precision · Performance"
+                  aria-label={isRTL ? "التصميم · الدقة · الأداء" : "Design · Precision · Performance"}
                 >
-                  <StackedHeadline align="left" />
+                  {isRTL
+                    ? <ArabicHeadline align="right" />
+                    : <StackedHeadline align="left" />
+                  }
                 </h1>
 
                 <motion.p
                   {...fadeUp(0.38)}
                   className="text-[15px] md:text-base text-muted-foreground leading-[1.75] mb-6 max-w-xl"
+                  style={{
+                    textAlign: isRTL ? "right" : "left",
+                    fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+                  }}
                 >
                   {t(
                     <>
@@ -380,25 +464,29 @@ export function Home() {
                 <motion.div
                   {...fadeUp(0.48)}
                   className="flex items-center gap-4"
+                  style={{ flexDirection: isRTL ? "row-reverse" : "row" }}
                 >
                   <Link
                     href="/projects"
                     className="px-7 py-3 bg-primary text-primary-foreground font-semibold rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-colors duration-200 text-[15px]"
+                    style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
                   >
-                    {t("View Projects", "استعرض المشاريع")} <ArrowRight className="w-4 h-4" />
+                    {t("View Projects", "استعرض المشاريع")}
+                    <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ transform: isRTL ? "scaleX(-1)" : "none" }} />
                   </Link>
                   <Link
                     href="/contact"
                     className="inline-flex items-center gap-2 px-7 py-3 bg-card border border-border text-foreground font-semibold rounded-xl hover:bg-white/5 transition-colors duration-200 text-[15px]"
+                    style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}
                   >
-                    <Mail className="w-4 h-4 text-primary" />
+                    <Mail className="w-4 h-4 text-primary flex-shrink-0" />
                     {t("Contact", "تواصل معي")}
                   </Link>
                 </motion.div>
               </div>
 
-              {/* Right column — dashboard card */}
-              <div className="col-span-5 flex">
+              {/* Code card — order 2 in EN (right), order 1 in AR (left) */}
+              <div className="col-span-5 flex" style={{ order: isRTL ? 1 : 2 }}>
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
