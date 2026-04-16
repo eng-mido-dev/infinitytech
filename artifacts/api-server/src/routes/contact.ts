@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, contactMessages } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { broadcastPush } from "./push";
 
@@ -22,13 +22,25 @@ router.post("/contact", async (req, res) => {
   try {
     await db.insert(contactMessages).values(parsed.data);
 
-    // Fire-and-forget push notification to all admin subscriptions
+    // Count total messages for the privacy-safe push body
+    let total = 1;
+    try {
+      const [row] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(contactMessages);
+      total = row?.count ?? 1;
+    } catch {}
+
+    // Fire-and-forget — NO sender name or message content in the payload
     broadcastPush({
-      title: `📩 New message from ${parsed.data.name}`,
-      body:  `${parsed.data.subject} — ${parsed.data.message.slice(0, 100)}${parsed.data.message.length > 100 ? "…" : ""}`,
+      title: "📩 New Message Received",
+      body:  total === 1
+        ? "You have 1 unread message"
+        : `You have ${total} unread messages`,
       icon:  "/favicon.svg",
       tag:   "new-contact",
-    }).catch(() => {}); // never block the HTTP response
+      url:   "/admin-infinity",
+    } as any).catch(() => {});
 
     return res.json({ ok: true });
   } catch (err: any) {
@@ -36,7 +48,7 @@ router.post("/contact", async (req, res) => {
   }
 });
 
-// GET /api/admin/messages?pin=<pin>  — private, PIN-protected
+// GET /api/admin/messages?pin=<pin>
 router.get("/admin/messages", async (req, res) => {
   const validPin = process.env.ADMIN_PIN || "admin2024";
   if (req.query.pin !== validPin) {
@@ -48,6 +60,22 @@ router.get("/admin/messages", async (req, res) => {
       .from(contactMessages)
       .orderBy(desc(contactMessages.created_at));
     return res.json({ messages: msgs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/messages/:id?pin=<pin>
+router.delete("/admin/messages/:id", async (req, res) => {
+  const validPin = process.env.ADMIN_PIN || "admin2024";
+  if (req.query.pin !== validPin) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    await db.delete(contactMessages).where(eq(contactMessages.id, id));
+    return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

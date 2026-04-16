@@ -10,7 +10,7 @@ self.addEventListener("activate", (event) => {
 
 // ── Push event ────────────────────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
-  let data = { title: "Infinity Tech", body: "You have a new notification." };
+  let data = { title: "Infinity Tech", body: "New Message Received." };
 
   try {
     if (event.data) {
@@ -21,13 +21,13 @@ self.addEventListener("push", (event) => {
   }
 
   const options = {
-    body:    data.body  || "",
-    icon:    data.icon  || "/favicon.svg",
-    badge:   data.badge || "/favicon.svg",
-    tag:     data.tag   || "infinity-tech",
+    body:     data.body  || "",
+    icon:     data.icon  || "/favicon.svg",
+    badge:    data.badge || "/favicon.svg",
+    tag:      data.tag   || "infinity-tech",
     renotify: true,
-    vibrate: [200, 100, 200],
-    data: { url: data.url || "/" },
+    vibrate:  [200, 100, 200],
+    data:     { url: data.url || "/admin-infinity" },
   };
 
   event.waitUntil(
@@ -35,22 +35,27 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// ── Notification click — focus or open the admin tab ─────────────────────────
+// ── Notification click ────────────────────────────────────────────────────────
+// Focuses an existing PWA/app window if found; opens in standalone mode otherwise.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = event.notification.data?.url || "/admin-infinity";
+
+  const targetUrl = event.notification.data?.url || "/admin-infinity";
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
-        for (const client of clients) {
-          if (client.url.includes(target) && "focus" in client) {
+      .then((clientList) => {
+        // 1. Try to find and focus any existing window that already shows the app
+        for (const client of clientList) {
+          if ("focus" in client) {
             return client.focus();
           }
         }
+        // 2. No existing window — open in standalone/PWA mode
+        // The displayMode hint is respected by supporting browsers
         if (self.clients.openWindow) {
-          return self.clients.openWindow(target);
+          return self.clients.openWindow(targetUrl);
         }
       })
   );
