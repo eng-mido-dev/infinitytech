@@ -323,9 +323,6 @@ export function Footer() {
               {navLinks.map(({ label, href }) => (
                 <ChevronLink key={href} href={href} isRTL={isRTL}>{label}</ChevronLink>
               ))}
-              {isRTL && (
-                <ChevronLink href="/contact" isRTL={isRTL}>سياسة الخصوصية</ChevronLink>
-              )}
             </ul>
           </div>
 
@@ -405,8 +402,8 @@ export function Footer() {
         </div>
       </div>
 
-      {/* ── Bottom bar ── */}
-      <div style={{
+      {/* ── Bottom bar — always LTR so signature stays on the right ── */}
+      <div dir="ltr" style={{
         position: "relative",
         borderTop: "1px solid rgba(255,255,255,0.05)",
       }}>
@@ -421,31 +418,33 @@ export function Footer() {
           gap: 12,
           flexWrap: "wrap",
         }}>
+          {/* Copyright — brand name always English, trailing phrase follows language */}
           <p style={{
             fontSize: 11,
             color: "rgba(255,255,255,0.22)",
             margin: 0,
-            order: isRTL ? 2 : 1,
-            fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined,
+            fontFamily: "'Inter', sans-serif",
+            letterSpacing: "0.02em",
           }}>
-            {isRTL
-              ? `© ${new Date().getFullYear()} إنفينيتي تيك. جميع الحقوق محفوظة.`
-              : `© ${new Date().getFullYear()} Infinity Tech. All rights reserved.`}
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: "0.06em" }}>
+              &copy; {new Date().getFullYear()} INFINITY.TECH
+            </span>
+            <span style={{ fontFamily: isRTL ? "'Cairo', 'IBM Plex Sans Arabic', sans-serif" : undefined }}>
+              {isRTL ? " — جميع الحقوق محفوظة." : " — All rights reserved."}
+            </span>
           </p>
 
-          <div style={{ order: isRTL ? 1 : 2 }}>
-            <Signature size="sm" opacity={0.3} color="#22D3EE" rotate={-3} animate={false} />
-          </div>
+          {/* Signature — pinned to the right always */}
+          <Signature size="sm" opacity={0.3} color="#22D3EE" rotate={-3} animate={false} />
 
-          {/* Discreet admin access */}
+          {/* Discreet admin access — always bottom-right */}
           <Link
             href="/admin"
             aria-label="System access"
             style={{
               position: "absolute",
               bottom: 16,
-              right: isRTL ? undefined : 24,
-              left: isRTL ? 24 : undefined,
+              right: 24,
               opacity: 0.1,
               transition: "opacity 0.5s ease",
               cursor: "pointer",
