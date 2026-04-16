@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
-/* ─── PWA: disable text selection, touch callout, and tap highlight ────────── */
-* {
+/* ─── PWA standalone: disable selection, callout, tap highlight ─────────────
+   Only activates when the app runs as an installed PWA (display-mode: standalone).
+   Regular browser visitors are completely unaffected.                          */
+.pwa-mode * {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
-input, textarea, [contenteditable] {
+.pwa-mode input,
+.pwa-mode textarea,
+.pwa-mode [contenteditable] {
   -webkit-user-select: text;
   user-select: text;
 }

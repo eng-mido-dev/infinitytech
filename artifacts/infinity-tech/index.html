@@ -55,7 +55,16 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>window.addEventListener('contextmenu', function(e) { e.preventDefault(); });</script>
+    <script>
+      (function () {
+        var isPwa = window.matchMedia('(display-mode: standalone)').matches ||
+                    window.navigator.standalone === true;
+        if (isPwa) {
+          document.body.classList.add('pwa-mode');
+          window.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
