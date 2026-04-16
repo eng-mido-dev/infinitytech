@@ -24,10 +24,9 @@ type FilterType = "all" | "new" | "today";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  const datePart = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return `${datePart}, ${timePart}`;
 }
 
 function timeSince(iso: string) {
@@ -38,18 +37,6 @@ function timeSince(iso: string) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
-}
-
-// ── Live clock (12-hour, updates every 10 s for accuracy) ─────────────────────
-function useLiveClock(): string {
-  const fmt = () =>
-    new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-  const [time, setTime] = useState(fmt);
-  useEffect(() => {
-    const id = setInterval(() => setTime(fmt()), 10_000);
-    return () => clearInterval(id);
-  }, []);
-  return time;
 }
 
 // ── Request notification permission ──────────────────────────────────────────
@@ -506,7 +493,6 @@ function MessageCard({
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const { t, isRTL } = useLanguage();
-  const clock = useLiveClock();
 
   const [messages, setMessages]     = useState<Message[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -718,25 +704,6 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
           </span>
           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.28)", fontWeight: 500, display: "none" }}>
             {t("Leads", "الرسائل")}
-          </span>
-        </div>
-
-        {/* Center: Live Clock */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          borderRadius: 8, padding: "4px 12px",
-          flexShrink: 0,
-        }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,0.6)" strokeWidth="2">
-            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span style={{
-            fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.65)",
-            fontFamily: "'Space Grotesk', monospace", letterSpacing: "0.05em",
-          }}>
-            {clock}
           </span>
         </div>
 
