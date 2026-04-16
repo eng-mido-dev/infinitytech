@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* ─── PWA: disable text selection, touch callout, and tap highlight ────────── */
+* {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 @theme inline {
   --color-background:           hsl(var(--background));
   --color-foreground:           hsl(var(--foreground));
