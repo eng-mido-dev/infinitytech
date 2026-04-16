@@ -209,7 +209,7 @@ export function Footer() {
           color: "rgba(34,211,238,0.025)",
           WebkitTextStroke: "1.5px rgba(34,211,238,0.1)",
         }}>
-          {isRTL ? "إنفينيتي تيك" : "INFINITY TECH"}
+          INFINITY TECH
         </span>
       </div>
 
