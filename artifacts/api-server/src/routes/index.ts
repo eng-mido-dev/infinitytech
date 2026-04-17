@@ -9,9 +9,11 @@ import skillsRouter from "./skills";
 import setupRouter from "./setup";
 import contactRouter from "./contact";
 import pushRouter from "./push";
+import uploadRouter from "./upload";
 
 const router: IRouter = Router();
 
+router.use(uploadRouter);
 router.use(healthRouter);
 router.use(translateRouter);
 router.use(analyticsRouter);

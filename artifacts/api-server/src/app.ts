@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
+import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -82,6 +83,15 @@ app.use(
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// ── Static uploads (project thumbnails) ──────────────────────────────────────
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "public", "uploads"), {
+    maxAge: "30d",
+    immutable: false,
+  })
+);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api", router);

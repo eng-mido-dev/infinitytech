@@ -9,7 +9,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, Upload, FileText, Image, Video,
   Code2, GitCommit, Calendar, Tag, Globe, Lock, ChevronDown, X,
   Link2, CheckCircle2, AlertCircle, FolderArchive, FileCode,
-  Cpu, Box, Film, Eye, EyeOff
+  Cpu, Box, Film, Eye, EyeOff, ImagePlus, Loader2, ExternalLink,
 } from "lucide-react";
 import { Link } from "wouter";
 import BilingualField from "@/admin/components/BilingualField";
@@ -106,6 +106,13 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
 
+  // Thumbnail image upload state
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
   // File/media upload state
   const [addFileOpen, setAddFileOpen] = useState(false);
   const [fileForm, setFileForm] = useState<Omit<ProjectFile, "id" | "uploadedAt">>({
@@ -130,16 +137,68 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     setForm(f => ({ ...f, [key]: val }));
   }
 
+  function handleThumbnailPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setThumbnailFile(file);
+    setThumbnailError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => setThumbnailPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function clearThumbnailFile() {
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setThumbnailError(null);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
+  }
+
+  async function uploadThumbnail(file: File): Promise<string> {
+    const pin = localStorage.getItem("it-admin-pin") || "admin2024";
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "x-admin-pin": pin },
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any).error ?? "Image upload failed");
+    }
+    const { url } = await res.json();
+    return url as string;
+  }
+
   async function handleSave() {
     setSaveError(null);
+    let finalForm = { ...form };
+
+    if (thumbnailFile) {
+      setThumbnailUploading(true);
+      try {
+        const url = await uploadThumbnail(thumbnailFile);
+        finalForm = { ...finalForm, thumbnailUrl: url };
+        setField("thumbnailUrl", url);
+        clearThumbnailFile();
+      } catch (err: any) {
+        const msg = err.message ?? "Image upload failed";
+        setThumbnailError(msg);
+        setThumbnailUploading(false);
+        return;
+      }
+      setThumbnailUploading(false);
+    }
+
     try {
       if (mode === "create") {
-        const p = await createProject(form);
+        const p = await createProject(finalForm);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
         navigate(`/admin/projects/${p.id}`);
       } else if (projectId) {
-        await updateProject(projectId, form, commitMsg || undefined);
+        await updateProject(projectId, finalForm, commitMsg || undefined);
         setCommitMsg("");
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -280,13 +339,123 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 arPlaceholder="وصف مختصر للمشروع…"
               />
 
-              {/* Image + Category + Links */}
+              {/* Cover Image Upload */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Cover Image
+                </label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Upload an image directly, or paste a URL below. Uploads are saved to the server.
+                </p>
+
+                {/* Preview area */}
+                <div className="relative mb-3 rounded-xl overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
+                  style={{ height: "180px" }}>
+                  {(thumbnailPreview || form.thumbnailUrl) ? (
+                    <>
+                      <img
+                        src={thumbnailPreview || form.thumbnailUrl || ""}
+                        alt="Thumbnail preview"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      {thumbnailPreview && (
+                        <div className="absolute bottom-2 left-2">
+                          <span className="text-[10px] font-mono font-bold text-white/80 bg-black/50 px-2 py-0.5 rounded">
+                            PENDING UPLOAD
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={thumbnailPreview ? clearThumbnailFile : () => setField("thumbnailUrl", "")}
+                        className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-500/80 transition-colors"
+                        title="Remove image"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      {form.thumbnailUrl && !thumbnailPreview && (
+                        <a
+                          href={form.thumbnailUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="absolute top-2 left-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary/80 transition-colors"
+                          title="Open image"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground/50 select-none pointer-events-none">
+                      <ImagePlus className="w-10 h-10" />
+                      <span className="text-xs">No image selected</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload button row */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    disabled={thumbnailUploading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-60"
+                  >
+                    {thumbnailUploading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                    ) : (
+                      <><Upload className="w-4 h-4" /> Choose Image</>
+                    )}
+                  </button>
+                  {thumbnailFile && (
+                    <div className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded-lg bg-muted/30 border border-border">
+                      <Image className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      <span className="text-xs text-foreground truncate font-mono">{thumbnailFile.name}</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        ({(thumbnailFile.size / 1024).toFixed(0)} KB)
+                      </span>
+                      <button onClick={clearThumbnailFile} className="ml-auto text-muted-foreground hover:text-red-400 flex-shrink-0">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/avif"
+                    className="hidden"
+                    onChange={handleThumbnailPick}
+                  />
+                </div>
+
+                {thumbnailError && (
+                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">
+                    {thumbnailError}
+                  </p>
+                )}
+
+                {/* URL fallback */}
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                    Or paste a URL
+                  </p>
+                  <input
+                    className={inputCls}
+                    value={form.thumbnailUrl || ""}
+                    onChange={e => {
+                      setField("thumbnailUrl", e.target.value);
+                      if (e.target.value) clearThumbnailFile();
+                    }}
+                    placeholder="https://images.unsplash.com/..."
+                  />
+                </div>
+              </div>
+
+              {/* Category */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Cover Image URL" sub="Direct URL to a project cover image (JPG, PNG, WebP)">
-                  <input className={inputCls} value={form.thumbnailUrl} onChange={e => setField("thumbnailUrl", e.target.value)} placeholder="https://..." />
-                </Field>
                 <Field label="Category" sub="E.g. PCB Design, Embedded Systems, Robotics">
-                  <input className={inputCls} value={form.category} onChange={e => setField("category", e.target.value)} placeholder="PCB Design" />
+                  <input className={inputCls} value={form.category || ""} onChange={e => setField("category", e.target.value)} placeholder="PCB Design" />
                 </Field>
               </div>
 

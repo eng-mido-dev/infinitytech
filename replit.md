@@ -13,7 +13,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API framework**: Express 5
 - **Database (projects/contacts)**: Supabase (PostgreSQL) — `@supabase/supabase-js`
 - **Database (analytics/comments/notifications)**: PostgreSQL + Drizzle ORM (Replit-managed)
-- **Media storage**: Cloudinary (video/image uploads via signed browser uploads)
+- **Media storage**: Local disk via Multer — POST `/api/upload` saves to `artifacts/api-server/public/uploads/`, served at `/uploads/` (proxied through Vite in dev)
 - **Validation**: Zod, `drizzle-zod`
 - **Build**: esbuild (CJS bundle)
 
