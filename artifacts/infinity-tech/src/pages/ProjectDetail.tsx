@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, CheckCircle2, Code2, Download, FileText, Settings,
   TerminalSquare, Cpu, Box, FolderOpen, Archive, Play,
-  Globe, ExternalLink, Copy, Check, Package, Tag,
+  Globe, ExternalLink, Copy, Check, Package, Tag, Layers, Zap,
 } from "lucide-react";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import { MediaGallery } from "@/components/project/MediaGallery";
@@ -320,6 +320,8 @@ export function ProjectDetail() {
                 src={project.thumbnailUrl}
                 alt={t(project.title, project.titleAr)}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                loading="lazy"
+                decoding="async"
               />
             ) : (
               <>
@@ -331,6 +333,23 @@ export function ProjectDetail() {
               </>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent pointer-events-none" />
+
+            {/* 3D Preview button — shown on hover for 3D projects */}
+            {(project.category ?? "").toLowerCase() === "3d" && project.liveUrl && (
+              <a
+                href={project.liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute inset-0 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              >
+                <span className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-blue-500/90 backdrop-blur-sm text-white text-sm font-bold shadow-2xl border border-blue-400/40 hover:bg-blue-500 transition-colors">
+                  <Box className="w-5 h-5" />
+                  {t("View 3D Preview", "عرض النموذج ثلاثي الأبعاد")}
+                  <ExternalLink className="w-4 h-4" />
+                </span>
+              </a>
+            )}
+
             {/* Watermark */}
             <div className="absolute bottom-4 right-4 pointer-events-none">
               <span className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "rgba(34,211,238,0.3)", transform: "rotate(-8deg)", display: "block", transformOrigin: "bottom right" }}>
@@ -462,6 +481,61 @@ export function ProjectDetail() {
                         )}
                       </div>
                     </div>
+
+                    {/* Hardware Specifications — Simatic / Gripper */}
+                    {(["simatic", "gripper"].includes((project.category ?? "").toLowerCase())) && project.tags.length > 0 && (
+                      <div className={`p-5 rounded-2xl border ${
+                        (project.category ?? "").toLowerCase() === "simatic"
+                          ? "bg-violet-500/5 border-violet-500/20"
+                          : "bg-amber-500/5 border-amber-500/20"
+                      }`}>
+                        <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] mb-4 flex items-center gap-2 ${
+                          (project.category ?? "").toLowerCase() === "simatic" ? "text-violet-400" : "text-amber-400"
+                        }`}>
+                          {(project.category ?? "").toLowerCase() === "simatic"
+                            ? <Layers className="w-3.5 h-3.5" />
+                            : <Zap className="w-3.5 h-3.5" />}
+                          {t("Hardware & Components", "المكونات والأجهزة")}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {project.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold border ${
+                                (project.category ?? "").toLowerCase() === "simatic"
+                                  ? "bg-violet-500/10 border-violet-500/25 text-violet-300"
+                                  : "bg-amber-500/10 border-amber-500/25 text-amber-300"
+                              }`}
+                            >
+                              {(project.category ?? "").toLowerCase() === "simatic"
+                                ? <Cpu className="w-3 h-3" />
+                                : <Zap className="w-3 h-3" />}
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3D Preview card */}
+                    {(project.category ?? "").toLowerCase() === "3d" && project.liveUrl && (
+                      <div className="p-5 rounded-2xl bg-blue-500/5 border border-blue-500/20">
+                        <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Box className="w-3.5 h-3.5" />
+                          {t("3D Model", "النموذج ثلاثي الأبعاد")}
+                        </p>
+                        <a
+                          href={project.liveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-sm font-semibold hover:bg-blue-500/25 transition-colors"
+                        >
+                          <Box className="w-4 h-4" />
+                          {t("Open 3D Preview", "فتح النموذج ثلاثي الأبعاد")}
+                          <ExternalLink className="w-3.5 h-3.5 ml-auto" />
+                        </a>
+                      </div>
+                    )}
 
                     {/* Timeline */}
                     <div>

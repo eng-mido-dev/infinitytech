@@ -454,8 +454,13 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
               {/* Category */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Category" sub="E.g. PCB Design, Embedded Systems, Robotics">
-                  <input className={inputCls} value={form.category || ""} onChange={e => setField("category", e.target.value)} placeholder="PCB Design" />
+                <Field label="Category" sub="Used for filtering on the Projects page">
+                  <select className={inputCls} value={form.category || ""} onChange={e => setField("category", e.target.value)}>
+                    <option value="">— No Category —</option>
+                    <option value="gripper">Gripper</option>
+                    <option value="3d">3D Design</option>
+                    <option value="simatic">Simatic</option>
+                  </select>
                 </Field>
               </div>
 
