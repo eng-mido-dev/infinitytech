@@ -21,6 +21,8 @@ type DbRow = {
   tags: string[] | null;
   status: string;
   github_url: string | null;
+  live_link: string | null;
+  category: string | null;
   language: string | null;
   code_snippet: string | null;
   timeline: Project["timeline"] | null;
@@ -49,6 +51,9 @@ function dbToProject(row: DbRow): Project {
     language: row.language ?? "c",
     timeline: row.timeline ?? [],
     githubUrl: row.github_url ?? "",
+    liveUrl: row.live_link ?? undefined,
+    category: row.category ?? undefined,
+    thumbnailUrl: row.thumbnail_url ?? undefined,
     status: row.status as Project["status"],
     files: row.files ?? [],
     media: buildMedia(row),

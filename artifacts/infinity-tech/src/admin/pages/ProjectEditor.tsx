@@ -54,6 +54,7 @@ const EMPTY_PROJECT: Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "comm
   solution: "", solutionAr: "",
   tags: [], status: "active",
   codeSnippet: "", language: "c", githubUrl: "",
+  liveUrl: "", category: "", thumbnailUrl: "" as string,
   timeline: [], files: [], media: [], updates: [],
 };
 
@@ -279,8 +280,18 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 arPlaceholder="وصف مختصر للمشروع…"
               />
 
-              {/* Status + Language */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Image + Category + Links */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Cover Image URL" sub="Direct URL to a project cover image (JPG, PNG, WebP)">
+                  <input className={inputCls} value={form.thumbnailUrl} onChange={e => setField("thumbnailUrl", e.target.value)} placeholder="https://..." />
+                </Field>
+                <Field label="Category" sub="E.g. PCB Design, Embedded Systems, Robotics">
+                  <input className={inputCls} value={form.category} onChange={e => setField("category", e.target.value)} placeholder="PCB Design" />
+                </Field>
+              </div>
+
+              {/* Status + Language + Links */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Field label="Status">
                   <select className={inputCls} value={form.status} onChange={e => setField("status", e.target.value as ProjectStatus)}>
                     {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
@@ -293,6 +304,9 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 </Field>
                 <Field label="GitHub URL">
                   <input className={inputCls} value={form.githubUrl} onChange={e => setField("githubUrl", e.target.value)} placeholder="https://github.com/..." />
+                </Field>
+                <Field label="Live / Demo URL">
+                  <input className={inputCls} value={form.liveUrl} onChange={e => setField("liveUrl", e.target.value)} placeholder="https://..." />
                 </Field>
               </div>
 

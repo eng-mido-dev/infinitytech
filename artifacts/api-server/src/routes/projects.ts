@@ -21,6 +21,7 @@ const ALLOWED_WRITE_FIELDS = new Set([
   "solution_en", "solution_ar", "thumbnail_url", "video_url",
   "assets_zip_url", "tags", "status", "github_url", "language",
   "code_snippet", "timeline", "files", "media", "updates",
+  "category", "live_link",
 ]);
 
 function sanitizeBody(body: Record<string, unknown>) {

@@ -60,6 +60,9 @@ export interface AdminProject {
   codeSnippet: string;
   language: string;
   githubUrl: string;
+  liveUrl?: string;
+  category?: string;
+  thumbnailUrl?: string;
   timeline: { date: string; title: string; desc: string }[];
   files: ProjectFile[];
   media: ProjectMedia[];

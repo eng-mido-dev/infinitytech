@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, CheckCircle2, Code2, Download, FileText, Settings,
   TerminalSquare, Cpu, Box, FolderOpen, Archive, Play,
-  Globe, ExternalLink, Copy, Check, Package,
+  Globe, ExternalLink, Copy, Check, Package, Tag,
 } from "lucide-react";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import { MediaGallery } from "@/components/project/MediaGallery";
@@ -261,6 +261,12 @@ export function ProjectDetail() {
           {/* Header */}
           <div className="mb-8">
             <div className="flex flex-wrap items-center gap-2 mb-4">
+              {project.category && (
+                <span className="flex items-center gap-1 px-2.5 py-1 text-[10px] uppercase font-mono font-bold rounded bg-primary/15 text-primary border border-primary/25">
+                  <Tag className="w-2.5 h-2.5" />
+                  {project.category}
+                </span>
+              )}
               {project.tags.map(tag => (
                 <span key={tag} className="px-2 py-1 text-[10px] uppercase font-mono font-medium rounded bg-primary/10 text-primary border border-primary/20">
                   {tag}
@@ -276,16 +282,55 @@ export function ProjectDetail() {
             <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">
               {t(project.description, project.descriptionAr)}
             </p>
+
+            {/* External links row */}
+            {(project.githubUrl || project.liveUrl) && (
+              <div className="flex flex-wrap items-center gap-3 mt-5">
+                {project.githubUrl && (
+                  <a
+                    href={project.githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-sm text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                  >
+                    <Globe className="w-4 h-4" />
+                    {t("GitHub Repository", "مستودع GitHub")}
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {project.liveUrl && (
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {t("Live Demo", "عرض مباشر")}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Hero image placeholder */}
-          <div className="w-full h-48 md:h-64 rounded-2xl bg-gradient-to-br from-card to-background border border-border mb-8 relative overflow-hidden flex items-center justify-center group">
-            <div
-              className="absolute inset-0 opacity-25"
-              style={{ backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMzQsMjExLDIzOCwwLjQpIi8+PC9zdmc+")` }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
-            <Settings className="w-12 h-12 text-primary/20 group-hover:text-primary/40 transition-colors duration-300" />
+          {/* Hero image */}
+          <div className="w-full h-48 md:h-72 rounded-2xl border border-border mb-8 relative overflow-hidden flex items-center justify-center group bg-gradient-to-br from-card to-background">
+            {project.thumbnailUrl ? (
+              <img
+                src={project.thumbnailUrl}
+                alt={t(project.title, project.titleAr)}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <>
+                <div
+                  className="absolute inset-0 opacity-25"
+                  style={{ backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMzQsMjExLDIzOCwwLjQpIi8+PC9zdmc+")` }}
+                />
+                <Settings className="w-12 h-12 text-primary/20 group-hover:text-primary/40 transition-colors duration-300" />
+              </>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent pointer-events-none" />
             {/* Watermark */}
             <div className="absolute bottom-4 right-4 pointer-events-none">
               <span className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "rgba(34,211,238,0.3)", transform: "rotate(-8deg)", display: "block", transformOrigin: "bottom right" }}>
@@ -391,16 +436,30 @@ export function ProjectDetail() {
                             {label}
                           </button>
                         ))}
-                        <a
-                          href={project.githubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-background border border-border hover:border-primary/30 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Globe className="w-4 h-4 text-primary flex-shrink-0" />
-                          {t("View on GitHub", "عرض على GitHub")}
-                          <ExternalLink className="w-3 h-3 ml-auto" />
-                        </a>
+                        {project.githubUrl && (
+                          <a
+                            href={project.githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-background border border-border hover:border-primary/30 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Globe className="w-4 h-4 text-primary flex-shrink-0" />
+                            {t("View on GitHub", "عرض على GitHub")}
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
+                        {project.liveUrl && (
+                          <a
+                            href={project.liveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary hover:text-primary-foreground text-sm text-primary hover:text-primary-foreground transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                            {t("Live Demo", "عرض مباشر")}
+                            <ExternalLink className="w-3 h-3 ml-auto" />
+                          </a>
+                        )}
                       </div>
                     </div>
 

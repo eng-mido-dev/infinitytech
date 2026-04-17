@@ -21,6 +21,8 @@ export const projects = pgTable("projects", {
   tags:           text("tags").array().notNull().default(sql`'{}'::text[]`),
   status:         text("status").notNull().default("active"),
   github_url:     text("github_url"),
+  live_link:      text("live_link"),
+  category:       text("category"),
   language:       text("language"),
   code_snippet:   text("code_snippet"),
   timeline:       jsonb("timeline"),

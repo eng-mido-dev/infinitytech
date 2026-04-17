@@ -47,7 +47,7 @@ artifacts-monorepo/
 - **Project ref**: `kbqhoyipoxmyhtbuhlkd`
 - **Host**: `db.kbqhoyipoxmyhtbuhlkd.supabase.co`
 - **Tables**: `projects`, `contact_messages`
-- **Columns (projects)**: `id, title_en, title_ar, description_en, description_ar, overview_en, overview_ar, problem_en, problem_ar, solution_en, solution_ar, thumbnail_url, video_url, assets_zip_url, tags, status, github_url, language, code_snippet, timeline, files, media, updates, created_at, updated_at`
+- **Columns (projects)**: `id, title_en, title_ar, description_en, description_ar, overview_en, overview_ar, problem_en, problem_ar, solution_en, solution_ar, thumbnail_url, video_url, assets_zip_url, tags, status, github_url, live_link, category, language, code_snippet, timeline, files, media, updates, created_at, updated_at`
 - **RLS**: Public SELECT on `projects`; service_role only for writes; service_role only for `contact_messages`
 - **Schema creation**: Done via Supabase Management API (PAT in `SUPABASE_ACCESS_TOKEN`)
 - **Admin writes**: Go through `api-server` using `SUPABASE_SERVICE_ROLE_KEY`

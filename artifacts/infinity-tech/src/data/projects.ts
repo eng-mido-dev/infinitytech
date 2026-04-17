@@ -45,6 +45,9 @@ export interface Project {
   language: string;
   timeline: { date: string; title: string; desc: string }[];
   githubUrl: string;
+  liveUrl?: string;
+  category?: string;
+  thumbnailUrl?: string;
   status: "completed" | "active" | "archived";
   files: ProjectFile[];
   media: ProjectMedia[];
