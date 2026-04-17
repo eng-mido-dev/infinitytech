@@ -87,6 +87,25 @@ router.post("/projects", requireAdmin, async (req, res) => {
   }
 });
 
+// PUT /api/projects/:id — admin only (full replace alias for PATCH)
+router.put("/projects/:id", requireAdmin, async (req, res) => {
+  try {
+    let body = sanitizeBody(req.body) as any;
+    if (Object.keys(body).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+    body = await autoTranslateFields(body);
+    const [row] = await db.update(projects)
+      .set({ ...body, updated_at: new Date() })
+      .where(eq(projects.id, req.params.id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Project not found" });
+    res.json({ project: row });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/projects/:id — admin only
 router.patch("/projects/:id", requireAdmin, async (req, res) => {
   try {
