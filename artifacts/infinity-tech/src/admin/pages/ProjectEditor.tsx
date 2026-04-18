@@ -250,6 +250,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -297,24 +298,81 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     setThumbnailFile(null);
     setThumbnailPreview(null);
     setThumbnailError(null);
+    setThumbnailUploadProgress(0);
     if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
   }
 
-  async function uploadThumbnail(file: File): Promise<string> {
+  async function uploadToCloudinary(
+    file: File,
+    resourceType: "image" | "video" | "raw",
+    folder: string,
+    onProgress?: (pct: number) => void,
+  ): Promise<string> {
     const pin = localStorage.getItem("it-admin-pin") || "admin2024";
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch("/api/upload", {
+
+    // 1. Get a fresh signature from the server
+    const sigRes = await fetch("/api/projects/asset-upload-signature", {
       method: "POST",
-      headers: { "x-admin-pin": pin },
-      body: formData,
+      headers: { "Content-Type": "application/json", "x-admin-pin": pin },
+      body: JSON.stringify({ resourceType, folder }),
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error((body as any).error ?? "Image upload failed");
+    if (!sigRes.ok) {
+      const body = await sigRes.json().catch(() => ({}));
+      throw new Error((body as any).error ?? "Failed to get upload signature");
     }
-    const { url } = await res.json();
-    return url as string;
+    const sig = await sigRes.json();
+
+    // 2. Build FormData — params must exactly match what was signed (folder + timestamp only)
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("api_key", sig.apiKey);
+    fd.append("timestamp", String(sig.timestamp));
+    fd.append("signature", sig.signature);
+    fd.append("folder", sig.folder);   // must match signed folder exactly
+
+    // 3. Upload via XHR so we can track progress
+    return new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "POST",
+        `https://api.cloudinary.com/v1_1/${sig.cloudName}/${sig.resourceType}/upload`,
+      );
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const data = JSON.parse(xhr.responseText) as { secure_url: string };
+          let url = data.secure_url;
+          // Inject auto optimisation transforms
+          if (resourceType === "image" && url.includes("cloudinary.com")) {
+            url = url.replace("/upload/", "/upload/f_auto,q_auto/");
+          } else if (resourceType === "video" && url.includes("cloudinary.com")) {
+            url = url.replace("/upload/", "/upload/f_auto,q_auto/");
+          }
+          resolve(url);
+        } else {
+          let msg = "Upload failed";
+          try {
+            const err = JSON.parse(xhr.responseText);
+            msg = err?.error?.message ?? msg;
+          } catch {}
+          reject(new Error(msg));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.ontimeout = () => reject(new Error("Upload timed out"));
+      xhr.send(fd);
+    });
+  }
+
+  async function uploadThumbnail(file: File): Promise<string> {
+    return uploadToCloudinary(file, "image", "infinity-tech", (pct) => setThumbnailUploadProgress(pct));
   }
 
   function handleVideoPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -339,54 +397,22 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
   async function handleVideoUpload() {
     if (!videoFile) return;
-    const pin = localStorage.getItem("it-admin-pin") || "admin2024";
     setVideoUploading(true);
     setVideoError(null);
     setVideoUploadProgress(0);
     try {
-      const sigRes = await fetch("/api/projects/video-upload-signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-pin": pin },
-        body: JSON.stringify({ folder: "infinity-tech/videos" }),
-      });
-      if (!sigRes.ok) throw new Error("Failed to get upload signature");
-      const sig = await sigRes.json();
-
-      return await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", `https://api.cloudinary.com/v1_1/${sig.cloudName}/video/upload`);
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) setVideoUploadProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const data = JSON.parse(xhr.responseText);
-            const raw: string = data.secure_url;
-            const optimized = raw.includes("cloudinary.com")
-              ? raw.replace("/upload/", "/upload/f_auto,q_auto/")
-              : raw;
-            setField("videoUrl", optimized);
-            if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
-            setVideoFile(null);
-            setVideoLocalUrl(null);
-            if (videoInputRef.current) videoInputRef.current.value = "";
-            setVideoUploadProgress(100);
-            resolve();
-          } else {
-            const err = JSON.parse(xhr.responseText);
-            reject(new Error(err?.error?.message ?? "Video upload failed"));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-
-        const fd = new FormData();
-        fd.append("file", videoFile!);
-        fd.append("api_key", sig.apiKey);
-        fd.append("timestamp", String(sig.timestamp));
-        fd.append("signature", sig.signature);
-        fd.append("folder", sig.folder);
-        xhr.send(fd);
-      });
+      const url = await uploadToCloudinary(
+        videoFile,
+        "video",
+        "infinity-tech/videos",
+        (pct) => setVideoUploadProgress(pct),
+      );
+      setField("videoUrl", url);
+      if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+      setVideoFile(null);
+      setVideoLocalUrl(null);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+      setVideoUploadProgress(100);
     } catch (err: any) {
       setVideoError(err.message ?? "Upload failed");
     } finally {
@@ -684,6 +710,23 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                     onChange={handleThumbnailPick}
                   />
                 </div>
+
+                {thumbnailUploading && (
+                  <div className="mb-3 space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Uploading image…
+                      </span>
+                      <span className="font-mono text-primary">{thumbnailUploadProgress}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-200 rounded-full"
+                        style={{ width: `${thumbnailUploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {thumbnailError && (
                   <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
@@ -1012,17 +1055,24 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
                 {/* Upload progress bar */}
                 {videoUploading && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Uploading to Cloudinary…</span>
-                      <span className="font-mono text-primary">{videoUploadProgress}%</span>
+                  <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-foreground font-medium">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        Uploading to Cloudinary…
+                      </span>
+                      <span className="font-mono font-bold text-primary text-base">{videoUploadProgress}%</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                    <div className="h-2.5 rounded-full bg-border overflow-hidden">
                       <div
-                        className="h-full bg-primary transition-all duration-200 rounded-full"
+                        className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-300 rounded-full"
                         style={{ width: `${videoUploadProgress}%` }}
                       />
                     </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {videoFile ? `${(videoFile.size / (1024 * 1024)).toFixed(1)} MB · ` : ""}
+                      Large files may take a few minutes — keep this tab open.
+                    </p>
                   </div>
                 )}
 

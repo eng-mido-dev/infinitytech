@@ -233,4 +233,24 @@ router.post("/projects/video-upload-signature", requireAdmin, async (req, res) =
   }
 });
 
+// POST /api/projects/asset-upload-signature — admin only (all types: image | video | raw)
+// resource_type: "image" for thumbnails, "video" for demos, "raw" for 3D models (GLB/STEP)
+router.post("/projects/asset-upload-signature", requireAdmin, async (req, res) => {
+  try {
+    const { folder, publicId, resourceType } = req.body as {
+      folder?: string;
+      publicId?: string;
+      resourceType?: "image" | "video" | "raw";
+    };
+    const type = (resourceType ?? "image") as "image" | "video" | "raw";
+    const defaultFolder =
+      type === "video" ? "infinity-tech/videos" :
+      type === "raw"   ? "infinity-tech/models"  : "infinity-tech";
+    const sig = getUploadSignature(folder ?? defaultFolder, publicId, type);
+    res.json(sig);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
