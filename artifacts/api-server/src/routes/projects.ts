@@ -1,8 +1,41 @@
 import { Router } from "express";
+import multer from "multer";
+import { Readable } from "stream";
 import { db, projects, projectStats, pool } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { getUploadSignature } from "../lib/cloudinary";
+import { cloudinary, getUploadSignature } from "../lib/cloudinary";
 import { autoTranslateFields } from "../lib/translate";
+
+// ── Server-side Cloudinary upload from an in-memory buffer ────────────────────
+// Used exclusively by the engineering-files endpoint so raw files (.glb, .step,
+// .pdf, .xlsx) never touch the local filesystem and go straight to Cloudinary.
+async function uploadBufferToCloudinary(
+  buffer: Buffer,
+  options: { resource_type: "raw" | "image" | "video"; folder: string },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { resource_type: options.resource_type, folder: options.folder },
+      (error, result) => {
+        if (error) {
+          console.error("[Cloudinary] ✗ upload_stream error:", error);
+          return reject(error);
+        }
+        resolve(result!.secure_url);
+      },
+    );
+    Readable.from(buffer).pipe(uploadStream);
+  });
+}
+
+// Multer — memory storage, 50 MB each, no MIME filter (client already restricts types)
+const engineeringUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+}).fields([
+  { name: "model_3d", maxCount: 1 },
+  { name: "bom_file", maxCount: 1 },
+]);
 
 const router = Router();
 
@@ -341,6 +374,94 @@ router.post("/projects/:id/updates", requireAdmin, async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/projects/:id/engineering-files — admin only
+// Accepts multipart/form-data with two optional file fields:
+//   model_3d  — .glb or .step 3D model (resource_type: raw)
+//   bom_file  — .pdf or .xlsx bill of materials (resource_type: raw)
+// Uploads each present file to Cloudinary, then saves the URLs to the DB row.
+// Returns the full updated project row so the frontend can immediately reflect both URLs.
+router.post("/projects/:id/engineering-files", requireAdmin, (req: any, res: any) => {
+  engineeringUpload(req, res, async (multerErr: any) => {
+    if (multerErr) {
+      console.error(`[Engineering] ✗ Multer error for ${req.params.id}:`, multerErr.message);
+      return res.status(400).json({ error: `File upload error: ${multerErr.message}` });
+    }
+
+    const id = req.params.id;
+    const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
+
+    // Verify at least one file was sent
+    const model3dFile = files["model_3d"]?.[0];
+    const bomFile     = files["bom_file"]?.[0];
+
+    if (!model3dFile && !bomFile) {
+      return res.status(400).json({ error: "No engineering files provided (expected model_3d or bom_file)" });
+    }
+
+    console.log(`[Engineering] ▶ Project ${id} — received files:`, {
+      model_3d: model3dFile ? `${model3dFile.originalname} (${(model3dFile.size / 1024 / 1024).toFixed(2)} MB)` : "(none)",
+      bom_file: bomFile     ? `${bomFile.originalname} (${(bomFile.size / 1024 / 1024).toFixed(2)} MB)` : "(none)",
+    });
+
+    const dbUpdates: Record<string, string | null> = {};
+
+    // ── Upload 3D model ────────────────────────────────────────────────────────
+    if (model3dFile) {
+      try {
+        console.log(`[Engineering] ▶ Uploading 3D model to Cloudinary — resource_type: raw`);
+        const url = await uploadBufferToCloudinary(model3dFile.buffer, {
+          resource_type: "raw",
+          folder: "infinity-tech/engineering",
+        });
+        dbUpdates.model_3d_url = url;
+        console.log(`[Engineering] ✓ 3D model URL: ${url}`);
+      } catch (err: any) {
+        console.error("[Engineering] ✗ 3D model Cloudinary upload failed:", err);
+        return res.status(502).json({ error: `3D model upload failed: ${err.message}` });
+      }
+    }
+
+    // ── Upload BOM ─────────────────────────────────────────────────────────────
+    if (bomFile) {
+      try {
+        console.log(`[Engineering] ▶ Uploading BOM to Cloudinary — resource_type: raw`);
+        const url = await uploadBufferToCloudinary(bomFile.buffer, {
+          resource_type: "raw",
+          folder: "infinity-tech/engineering",
+        });
+        dbUpdates.bom_url = url;
+        console.log(`[Engineering] ✓ BOM URL: ${url}`);
+      } catch (err: any) {
+        console.error("[Engineering] ✗ BOM Cloudinary upload failed:", err);
+        return res.status(502).json({ error: `BOM upload failed: ${err.message}` });
+      }
+    }
+
+    // ── Write URLs to DB ───────────────────────────────────────────────────────
+    try {
+      const [row] = await db.update(projects)
+        .set({ ...dbUpdates, updated_at: new Date() })
+        .where(eq(projects.id, id))
+        .returning();
+
+      if (!row) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      console.log(`[Engineering] ✓ DB updated — project ${id}`, {
+        model_3d_url: row.model_3d_url ?? "(none)",
+        bom_url:      row.bom_url      ?? "(none)",
+      });
+
+      // Return the full row so the frontend can immediately update its state
+      res.status(201).json({ project: row });
+    } catch (err: any) {
+      console.error(`[Engineering] ✗ DB write failed for ${id}:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 });
 
 // POST /api/projects/upload-signature — admin only (images)

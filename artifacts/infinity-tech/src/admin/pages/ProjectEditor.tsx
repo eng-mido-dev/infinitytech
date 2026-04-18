@@ -606,71 +606,12 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       setVideoUploading(false);
     }
 
-    // STEP B3 — Upload pending 3D model file (.glb / .step)
-    if (model3dFile) {
-      const ext = model3dFile.name.toLowerCase().split(".").pop() ?? "";
-      console.log(`[Save] ▶ Uploading 3D model: ${model3dFile.name} (.${ext}) — resource_type: raw`);
-      setModel3dUploading(true);
-      setModel3dUploadProgress(0);
-      setModel3dError(null);
-      try {
-        const url = await uploadToCloudinary(
-          model3dFile,
-          "raw",
-          "infinity-tech/engineering",
-          (pct) => setModel3dUploadProgress(pct),
-        );
-        console.log("[Save] ✓ 3D model URL:", url);
-        finalForm = { ...finalForm, model3dUrl: url };
-        setField("model3dUrl", url);
-        setModel3dFile(null);
-        if (model3dInputRef.current) model3dInputRef.current.value = "";
-        setModel3dUploadProgress(100);
-      } catch (err: any) {
-        const msg = `3D model upload failed: ${err.message ?? "Upload error"}`;
-        console.error("[Save] ✗ 3D model upload failed:", err);
-        setModel3dError(msg);
-        setSaveError(msg);
-        setModel3dUploading(false);
-        setIsBusy(false);
-        return;
-      }
-      setModel3dUploading(false);
-    }
+    // STEP B3/B4 — Engineering files are handled via FormData through the backend.
+    // The actual POST happens inside the main try block once we have a project ID
+    // (for CREATE it runs after the INSERT; for EDIT it runs before the PATCH).
+    // Nothing to do here — proceed to payload validation and DB write.
 
-    // STEP B4 — Upload pending BOM file (.pdf / .xlsx)
-    if (bomFile) {
-      const ext = bomFile.name.toLowerCase().split(".").pop() ?? "";
-      console.log(`[Save] ▶ Uploading BOM: ${bomFile.name} (.${ext}) — resource_type: raw`);
-      setBomUploading(true);
-      setBomUploadProgress(0);
-      setBomError(null);
-      try {
-        const url = await uploadToCloudinary(
-          bomFile,
-          "raw",
-          "infinity-tech/engineering",
-          (pct) => setBomUploadProgress(pct),
-        );
-        console.log("[Save] ✓ BOM URL:", url);
-        finalForm = { ...finalForm, bomUrl: url };
-        setField("bomUrl", url);
-        setBomFile(null);
-        if (bomInputRef.current) bomInputRef.current.value = "";
-        setBomUploadProgress(100);
-      } catch (err: any) {
-        const msg = `BOM upload failed: ${err.message ?? "Upload error"}`;
-        console.error("[Save] ✗ BOM upload failed:", err);
-        setBomError(msg);
-        setSaveError(msg);
-        setBomUploading(false);
-        setIsBusy(false);
-        return;
-      }
-      setBomUploading(false);
-    }
-
-    // STEP C — All media URLs are resolved; print the exact object going to the server
+    // STEP C — Print the exact object going to the server
     console.log("[Save] ▶ FINAL PAYLOAD being sent to server:", {
       title: finalForm.title,
       titleAr: finalForm.titleAr,
@@ -696,6 +637,76 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       return;
     }
 
+    // ── STEP B.eng — Engineering files via FormData through the backend ─────────
+    // Builds a FormData with model_3d and bom_file, logs all keys to the console,
+    // then POSTs to /api/projects/:id/engineering-files.  The backend runs multer
+    // (memory storage), uploads each file to Cloudinary with resource_type: raw,
+    // writes model_3d_url / bom_url to the DB row, and returns the full project.
+    // Returns the updated { model3dUrl, bomUrl } so callers can patch finalForm.
+    async function sendEngineeringFiles(id: string): Promise<{ model3dUrl: string; bomUrl: string }> {
+      const fd = new FormData();
+
+      if (model3dFile) {
+        fd.append("model_3d", model3dFile, model3dFile.name);
+        setModel3dUploading(true);
+        setModel3dUploadProgress(0);
+        console.log(`[Save] ▶ Engineering — model_3d: "${model3dFile.name}" (${(model3dFile.size / 1024 / 1024).toFixed(2)} MB)`);
+      }
+      if (bomFile) {
+        fd.append("bom_file", bomFile, bomFile.name);
+        setBomUploading(true);
+        setBomUploadProgress(0);
+        console.log(`[Save] ▶ Engineering — bom_file: "${bomFile.name}" (${(bomFile.size / 1024 / 1024).toFixed(2)} MB)`);
+      }
+
+      // ── Crucial log: print every key in the FormData before the fetch ───────
+      const fdKeys: string[] = [];
+      for (const k of fd.keys()) fdKeys.push(k);
+      console.log("[Save] ▶ FormData keys before POST /engineering-files:", fdKeys);
+      // Expected output: ["model_3d"] or ["bom_file"] or ["model_3d", "bom_file"]
+
+      const pin = localStorage.getItem("it-admin-pin") || "admin2024";
+
+      // Do NOT set Content-Type — the browser sets it with the multipart boundary automatically
+      const engRes = await fetch(`/api/projects/${id}/engineering-files`, {
+        method: "POST",
+        headers: { "x-admin-pin": pin },
+        body: fd,
+      });
+
+      if (!engRes.ok) {
+        const body = await engRes.json().catch(() => ({}));
+        const msg = (body as any).error ?? `Engineering upload failed (HTTP ${engRes.status})`;
+        console.error("[Save] ✗ Engineering-files endpoint error:", msg);
+        throw new Error(msg);
+      }
+
+      const { project: row } = await engRes.json();
+      console.log("[Save] ✓ Engineering files confirmed by backend:", {
+        model_3d_url: row.model_3d_url ?? "(none)",
+        bom_url:      row.bom_url      ?? "(none)",
+      });
+
+      // Clear file pickers; update form state with the persisted URLs
+      if (row.model_3d_url) {
+        setField("model3dUrl", row.model_3d_url);
+        setModel3dFile(null);
+        if (model3dInputRef.current) model3dInputRef.current.value = "";
+      }
+      if (row.bom_url) {
+        setField("bomUrl", row.bom_url);
+        setBomFile(null);
+        if (bomInputRef.current) bomInputRef.current.value = "";
+      }
+
+      setModel3dUploading(false);
+      setBomUploading(false);
+      setModel3dUploadProgress(100);
+      setBomUploadProgress(100);
+
+      return { model3dUrl: row.model_3d_url ?? "", bomUrl: row.bom_url ?? "" };
+    }
+
     try {
       let savedId: string | null = null;
 
@@ -703,18 +714,49 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
         console.log("[Save] ▶ Calling createProject — waiting for server 201…");
         const p = await createProject(finalForm);
         savedId = p.id;
-        // STEP D — server confirmed INSERT with RETURNING *; the row is in the DB
         console.log("[Save] ✓ Server responded 201 — project id:", p.id);
+
+        // Engineering files require a project ID — send them AFTER INSERT
+        if (model3dFile || bomFile) {
+          console.log("[Save] ▶ Sending engineering files for new project…");
+          try {
+            const { model3dUrl, bomUrl } = await sendEngineeringFiles(savedId);
+            // Update finalForm in case anything downstream needs the URLs
+            finalForm = { ...finalForm, model3dUrl, bomUrl };
+          } catch (engErr: any) {
+            // Engineering upload failed — project was still created; warn but don't abort
+            const msg = `Project saved, but engineering file upload failed: ${engErr.message}`;
+            console.warn("[Save] ⚠", msg);
+            setSaveError(msg);
+          }
+        }
+
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
         alert("Project Saved Successfully!");
-        // Navigate only AFTER alert is dismissed and server has already confirmed 201
         navigate(`/admin/projects/${savedId}`);
 
       } else if (projectId) {
+        // Engineering files go FIRST for EDIT — we update finalForm with returned URLs
+        // before the PATCH so the PATCH carries the correct model_3d_url / bom_url values.
+        if (model3dFile || bomFile) {
+          console.log("[Save] ▶ Sending engineering files before PATCH…");
+          try {
+            const { model3dUrl, bomUrl } = await sendEngineeringFiles(projectId);
+            finalForm = { ...finalForm, model3dUrl, bomUrl };
+          } catch (engErr: any) {
+            const msg = `Engineering file upload failed: ${engErr.message}`;
+            console.error("[Save] ✗", msg);
+            setSaveError(msg);
+            setModel3dUploading(false);
+            setBomUploading(false);
+            setIsBusy(false);
+            return;
+          }
+        }
+
         console.log("[Save] ▶ Calling updateProject — waiting for server 200…");
         await updateProject(projectId, finalForm, commitMsg || undefined);
-        // STEP D — server confirmed PATCH with RETURNING *; changes are persisted
         console.log("[Save] ✓ Server responded 200 — project id:", projectId);
         setCommitMsg("");
         setSaved(true);
