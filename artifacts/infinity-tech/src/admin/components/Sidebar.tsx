@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import {
   LayoutDashboard, FolderOpen, BarChart2, Settings,
   Sun, Moon, LogOut, ChevronLeft, ChevronRight,
-  Cpu, ExternalLink, MessageSquare, Bell, Zap,
+  Cpu, ExternalLink, MessageSquare, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -29,7 +29,6 @@ function useUnreadCount() {
 const NAV_ITEMS = [
   { href: "/admin",                 label: "Dashboard",     icon: LayoutDashboard },
   { href: "/admin/projects",        label: "Projects",      icon: FolderOpen },
-  { href: "/admin/skills",          label: "Skills",        icon: Zap },
   { href: "/admin/analytics",       label: "Analytics",     icon: BarChart2 },
   { href: "/admin/comments",        label: "Comments",      icon: MessageSquare },
   { href: "/admin/notifications",   label: "Notifications", icon: Bell, badge: true },

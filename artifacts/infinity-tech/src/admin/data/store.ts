@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { AdminProject, Commit, ProjectUpdate, ProjectFile, ProjectMedia } from "./types";
+import type { AdminProject, Commit, CustomSection, ProjectUpdate, ProjectFile, ProjectMedia } from "./types";
 
 const PIN_KEY = "it-admin-pin";
 const DEFAULT_PIN = "admin2024";
@@ -29,6 +29,11 @@ function dbToAdmin(row: Record<string, any>): AdminProject {
         fields: [],
       }];
 
+  const rawSections = row.custom_sections;
+  const customSections: CustomSection[] = Array.isArray(rawSections)
+    ? rawSections
+    : [];
+
   return {
     id: row.id,
     title: row.title_en ?? "",
@@ -37,18 +42,14 @@ function dbToAdmin(row: Record<string, any>): AdminProject {
     descriptionAr: row.description_ar ?? "",
     overview: row.overview_en ?? "",
     overviewAr: row.overview_ar ?? "",
-    problem: row.problem_en ?? "",
-    problemAr: row.problem_ar ?? "",
-    solution: row.solution_en ?? "",
-    solutionAr: row.solution_ar ?? "",
     tags: row.tags ?? [],
     status: row.status ?? "active",
-    codeSnippet: row.code_snippet ?? "",
     language: row.language ?? "c",
     githubUrl: row.github_url ?? "",
     liveUrl: row.live_link ?? "",
     category: row.category ?? "",
     thumbnailUrl: row.thumbnail_url ?? "",
+    customSections,
     timeline: row.timeline ?? [],
     files: row.files ?? [],
     media: row.media ?? [],
@@ -69,18 +70,14 @@ function adminToDb(p: Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "com
     description_ar: p.descriptionAr,
     overview_en: p.overview,
     overview_ar: p.overviewAr,
-    problem_en: p.problem,
-    problem_ar: p.problemAr,
-    solution_en: p.solution,
-    solution_ar: p.solutionAr,
     tags: p.tags,
     status: p.status,
-    code_snippet: p.codeSnippet,
     language: p.language,
     github_url: p.githubUrl,
     live_link: p.liveUrl,
     category: p.category,
     thumbnail_url: p.thumbnailUrl,
+    custom_sections: p.customSections,
     timeline: p.timeline,
     files: p.files,
     media: p.media,

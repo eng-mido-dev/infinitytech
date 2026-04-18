@@ -17,11 +17,10 @@ function requireAdmin(req: any, res: any, next: any) {
 
 const ALLOWED_WRITE_FIELDS = new Set([
   "title_en", "title_ar", "description_en", "description_ar",
-  "overview_en", "overview_ar", "problem_en", "problem_ar",
-  "solution_en", "solution_ar", "thumbnail_url", "video_url",
+  "overview_en", "overview_ar", "thumbnail_url", "video_url",
   "assets_zip_url", "tags", "status", "github_url", "language",
-  "code_snippet", "timeline", "files", "media", "updates",
-  "category", "live_link",
+  "timeline", "files", "media", "updates",
+  "category", "live_link", "custom_sections",
 ]);
 
 function sanitizeBody(body: Record<string, unknown>) {

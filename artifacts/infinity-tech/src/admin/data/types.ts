@@ -1,4 +1,12 @@
 export type ProjectStatus = "active" | "completed" | "archived";
+
+export interface CustomSection {
+  id: string;
+  titleEn: string;
+  titleAr: string;
+  contentEn: string;
+  contentAr: string;
+}
 export type FileType = "gerbers" | "schematic" | "model3d" | "source";
 export type MediaType = "image" | "video";
 export type UpdateType = "release" | "feature" | "fix" | "design" | "test" | "note";
@@ -51,18 +59,14 @@ export interface AdminProject {
   descriptionAr: string;
   overview: string;
   overviewAr: string;
-  problem: string;
-  problemAr: string;
-  solution: string;
-  solutionAr: string;
   tags: string[];
   status: ProjectStatus;
-  codeSnippet: string;
   language: string;
   githubUrl: string;
   liveUrl?: string;
   category?: string;
   thumbnailUrl?: string;
+  customSections: CustomSection[];
   timeline: { date: string; title: string; desc: string }[];
   files: ProjectFile[];
   media: ProjectMedia[];
