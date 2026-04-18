@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, ChevronRight, Play, ImageOff } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import type { ProjectMedia } from "@/data/projects";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { VideoPlayer } from "./VideoPlayer";
 
 function WatermarkOverlay() {
   return (
@@ -43,7 +44,7 @@ export function MediaGallery({ media }: MediaGalleryProps) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   const images = media.filter(m => m.type === "image");
-  const videos = media.filter(m => m.type === "video");
+  const videos = media.filter(m => m.type === "video" && m.id !== "hero-video");
 
   const openLightbox = (idx: number) => setLightboxIdx(idx);
   const closeLightbox = () => setLightboxIdx(null);
@@ -98,29 +99,31 @@ export function MediaGallery({ media }: MediaGalleryProps) {
           <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.2em] mb-4">Videos</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {videos.map(vid => (
-              <div key={vid.id} className="relative aspect-video rounded-xl overflow-hidden border border-border bg-card">
+              <div key={vid.id} className="space-y-1.5">
                 {vid.url && vid.url.includes("youtube") ? (
-                  <iframe
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-border bg-card">
+                    <iframe
+                      src={vid.url}
+                      className="w-full h-full"
+                      allowFullScreen
+                      title={getCaption(vid) || "Project video"}
+                    />
+                  </div>
+                ) : vid.url ? (
+                  <VideoPlayer
                     src={vid.url}
-                    className="w-full h-full"
-                    allowFullScreen
-                    title={getCaption(vid) || "Project video"}
+                    poster={(vid as { thumbnail?: string }).thumbnail}
+                    title={getCaption(vid) || undefined}
+                    className="rounded-xl border border-border"
                   />
                 ) : (
-                  <>
+                  <div className="relative aspect-video rounded-xl overflow-hidden border border-border bg-card">
                     <CircuitPlaceholder caption={getCaption(vid)} />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-14 h-14 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                        <Play className="w-6 h-6 text-primary fill-primary ml-0.5" />
-                      </div>
-                    </div>
                     <WatermarkOverlay />
-                  </>
+                  </div>
                 )}
                 {getCaption(vid) && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <p className="text-xs font-mono text-white/80">{getCaption(vid)}</p>
-                  </div>
+                  <p className="text-[11px] font-mono text-muted-foreground px-1">{getCaption(vid)}</p>
                 )}
               </div>
             ))}

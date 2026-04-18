@@ -71,6 +71,7 @@ const EMPTY_PROJECT: FormData = {
   language: "c", githubUrl: "",
   liveUrl: "", category: "",
   thumbnailUrl: "",
+  videoUrl: "",
   customSections: [],
   timeline: [], files: [], media: [], updates: [],
 };
@@ -233,6 +234,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       language: p.language, githubUrl: p.githubUrl,
       liveUrl: p.liveUrl ?? "", category: p.category ?? "",
       thumbnailUrl: p.thumbnailUrl ?? "",
+      videoUrl: p.videoUrl ?? "",
       customSections: p.customSections ?? [],
       timeline: p.timeline, files: p.files, media: p.media, updates: p.updates,
     };
@@ -250,6 +252,13 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoLocalUrl, setVideoLocalUrl] = useState<string | null>(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const [addFileOpen, setAddFileOpen] = useState(false);
   const [fileForm, setFileForm] = useState<Omit<ProjectFile, "id" | "uploadedAt">>({
@@ -306,6 +315,83 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     }
     const { url } = await res.json();
     return url as string;
+  }
+
+  function handleVideoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+    setVideoFile(file);
+    setVideoLocalUrl(URL.createObjectURL(file));
+    setVideoError(null);
+    setVideoUploadProgress(0);
+  }
+
+  function clearVideo() {
+    setField("videoUrl", "");
+    setVideoFile(null);
+    if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+    setVideoLocalUrl(null);
+    if (videoInputRef.current) videoInputRef.current.value = "";
+    setVideoError(null);
+    setVideoUploadProgress(0);
+  }
+
+  async function handleVideoUpload() {
+    if (!videoFile) return;
+    const pin = localStorage.getItem("it-admin-pin") || "admin2024";
+    setVideoUploading(true);
+    setVideoError(null);
+    setVideoUploadProgress(0);
+    try {
+      const sigRes = await fetch("/api/projects/video-upload-signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-pin": pin },
+        body: JSON.stringify({ folder: "infinity-tech/videos" }),
+      });
+      if (!sigRes.ok) throw new Error("Failed to get upload signature");
+      const sig = await sigRes.json();
+
+      return await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${sig.cloudName}/video/upload`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setVideoUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            const raw: string = data.secure_url;
+            const optimized = raw.includes("cloudinary.com")
+              ? raw.replace("/upload/", "/upload/f_auto,q_auto/")
+              : raw;
+            setField("videoUrl", optimized);
+            if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+            setVideoFile(null);
+            setVideoLocalUrl(null);
+            if (videoInputRef.current) videoInputRef.current.value = "";
+            setVideoUploadProgress(100);
+            resolve();
+          } else {
+            const err = JSON.parse(xhr.responseText);
+            reject(new Error(err?.error?.message ?? "Video upload failed"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+
+        const fd = new FormData();
+        fd.append("file", videoFile!);
+        fd.append("api_key", sig.apiKey);
+        fd.append("timestamp", String(sig.timestamp));
+        fd.append("signature", sig.signature);
+        fd.append("folder", sig.folder);
+        xhr.send(fd);
+      });
+    } catch (err: any) {
+      setVideoError(err.message ?? "Upload failed");
+    } finally {
+      setVideoUploading(false);
+    }
   }
 
   async function handleSave() {
@@ -877,7 +963,124 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
           {/* ── MEDIA TAB ── */}
           {tab === "media" && (
-            <motion.div key="media" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
+            <motion.div key="media" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+
+              {/* ── Hero Video ── */}
+              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Film className="w-4 h-4 text-primary" /> Hero Video
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Full-quality project video shown in the header. Delivered via Cloudinary (f_auto, q_auto).</p>
+                  </div>
+                </div>
+
+                {/* Video preview — local staged file */}
+                {videoLocalUrl && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-muted-foreground">Preview (not uploaded yet)</p>
+                    <div className="relative rounded-xl overflow-hidden border border-amber-500/30 bg-black" style={{ aspectRatio: "16/9" }}>
+                      <video
+                        src={videoLocalUrl}
+                        controls
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-contain"
+                      />
+                    </div>
+                    <p className="text-[11px] text-amber-400 font-mono">{videoFile?.name} — {videoFile ? `${(videoFile.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
+                  </div>
+                )}
+
+                {/* Video preview — already uploaded (form.videoUrl) */}
+                {form.videoUrl && !videoLocalUrl && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-muted-foreground">Current video (saved)</p>
+                    <div className="relative rounded-xl overflow-hidden border border-border bg-black" style={{ aspectRatio: "16/9" }}>
+                      <video
+                        src={form.videoUrl}
+                        controls
+                        playsInline
+                        poster={form.thumbnailUrl || undefined}
+                        className="absolute inset-0 w-full h-full object-contain"
+                        preload="metadata"
+                      />
+                    </div>
+                    <p className="text-[11px] text-primary/60 font-mono truncate">{form.videoUrl}</p>
+                  </div>
+                )}
+
+                {/* Upload progress bar */}
+                {videoUploading && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Uploading to Cloudinary…</span>
+                      <span className="font-mono text-primary">{videoUploadProgress}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-200 rounded-full"
+                        style={{ width: `${videoUploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {videoError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-500/5 border border-red-500/20 rounded-lg text-xs text-red-400">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {videoError}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
+                    className="hidden"
+                    onChange={handleVideoPick}
+                  />
+                  <button
+                    onClick={() => videoInputRef.current?.click()}
+                    disabled={videoUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm text-foreground hover:border-primary/40 transition-all disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {videoFile ? "Change File" : "Choose Video"}
+                  </button>
+
+                  {videoFile && !videoUploading && (
+                    <button
+                      onClick={handleVideoUpload}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 transition-all"
+                    >
+                      <Upload className="w-4 h-4" /> Upload to Cloudinary
+                    </button>
+                  )}
+
+                  {(form.videoUrl || videoFile) && !videoUploading && (
+                    <button
+                      onClick={clearVideo}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/20 transition-all"
+                    >
+                      <X className="w-4 h-4" /> Remove Video
+                    </button>
+                  )}
+
+                  {form.videoUrl && !videoFile && (
+                    <a
+                      href={form.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-border/80 transition-all"
+                    >
+                      <ExternalLink className="w-4 h-4" /> Open URL
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Media Gallery ── */}
               <div>
                 <h2 className="text-base font-semibold text-foreground">Media Gallery</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Images and video embeds for the project gallery</p>

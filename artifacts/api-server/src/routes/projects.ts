@@ -211,11 +211,22 @@ router.post("/projects/:id/updates", requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/projects/upload-signature — admin only
+// POST /api/projects/upload-signature — admin only (images)
 router.post("/projects/upload-signature", requireAdmin, async (req, res) => {
   try {
     const { folder, publicId } = req.body as { folder?: string; publicId?: string };
-    const sig = getUploadSignature(folder || "infinity-tech", publicId);
+    const sig = getUploadSignature(folder || "infinity-tech", publicId, "image");
+    res.json(sig);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/projects/video-upload-signature — admin only (videos)
+router.post("/projects/video-upload-signature", requireAdmin, async (req, res) => {
+  try {
+    const { folder, publicId } = req.body as { folder?: string; publicId?: string };
+    const sig = getUploadSignature(folder || "infinity-tech/videos", publicId, "video");
     res.json(sig);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

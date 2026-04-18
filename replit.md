@@ -72,6 +72,8 @@ Columns: `id, title_en, title_ar, description_en, description_ar, overview_en, o
   - Full project editor: bilingual title/description/overview, tags, status, GitHub URL, thumbnail upload
   - Dynamic custom sections (user-defined, bilingual title + content, add/remove)
   - Glassmorphic custom dropdowns (dark bg, cyan borders) for Status / Code Language / File Type
+  - Hero Video upload (Cloudinary direct browser upload with XHR progress bar, `f_auto,q_auto` optimization)
+  - Video preview (local blob URL preview before upload; saved URL preview after)
   - Files, Media, Updates, History tabs
   - Full CRUD via API (POST/PATCH/DELETE `/api/projects`)
 - **API proxy**: Vite dev server proxies `/api` → `http://localhost:8080`
@@ -87,7 +89,8 @@ Routes:
 - `PUT /api/projects/:id` — full replace (requires `x-admin-pin`)
 - `PATCH /api/projects/:id` — partial update (requires `x-admin-pin`)
 - `DELETE /api/projects/:id` — delete (requires `x-admin-pin`)
-- `POST /api/projects/upload-signature` — Cloudinary signed upload URL
+- `POST /api/projects/upload-signature` — Cloudinary signed upload URL (images)
+- `POST /api/projects/video-upload-signature` — Cloudinary signed upload URL (videos, resource_type=video)
 - `POST /api/projects/:id/translate` — auto-translate bilingual fields via OpenAI
 - `POST /api/contact` — contact form submission
 - `POST /api/analytics/event` — analytics event ingestion

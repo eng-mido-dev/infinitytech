@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import { MediaGallery } from "@/components/project/MediaGallery";
+import { VideoPlayer } from "@/components/project/VideoPlayer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { ProjectFile } from "@/data/projects";
 import { SEO, projectToJsonLd } from "@/components/SEO";
@@ -313,50 +314,66 @@ export function ProjectDetail() {
             )}
           </div>
 
-          {/* Hero image */}
-          <div className="w-full h-48 md:h-72 rounded-2xl border border-border mb-8 relative overflow-hidden flex items-center justify-center group bg-gradient-to-br from-card to-background">
-            {project.thumbnailUrl ? (
-              <img
-                src={project.thumbnailUrl}
-                alt={t(project.title, project.titleAr)}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <>
-                <div
-                  className="absolute inset-0 opacity-25"
-                  style={{ backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMzQsMjExLDIzOCwwLjQpIi8+PC9zdmc+")` }}
-                />
-                <Settings className="w-12 h-12 text-primary/20 group-hover:text-primary/40 transition-colors duration-300" />
-              </>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent pointer-events-none" />
+          {/* Hero — video player or thumbnail image */}
+          {(() => {
+            const heroVideo = project.media.find(m => m.id === "hero-video" && m.type === "video");
+            if (heroVideo?.url) {
+              return (
+                <div className="mb-8">
+                  <VideoPlayer
+                    src={heroVideo.url}
+                    poster={project.thumbnailUrl}
+                    title={t(project.title, project.titleAr)}
+                    autoplay={false}
+                    className="rounded-2xl border border-border"
+                  />
+                </div>
+              );
+            }
+            return (
+              <div className="w-full h-48 md:h-72 rounded-2xl border border-border mb-8 relative overflow-hidden flex items-center justify-center group bg-gradient-to-br from-card to-background">
+                {project.thumbnailUrl ? (
+                  <img
+                    src={project.thumbnailUrl}
+                    alt={t(project.title, project.titleAr)}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <>
+                    <div
+                      className="absolute inset-0 opacity-25"
+                      style={{ backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMzQsMjExLDIzOCwwLjQpIi8+PC9zdmc+")` }}
+                    />
+                    <Settings className="w-12 h-12 text-primary/20 group-hover:text-primary/40 transition-colors duration-300" />
+                  </>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent pointer-events-none" />
 
-            {/* 3D Preview button — shown on hover for 3D projects */}
-            {(project.category ?? "").toLowerCase() === "3d" && project.liveUrl && (
-              <a
-                href={project.liveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute inset-0 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              >
-                <span className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-blue-500/90 backdrop-blur-sm text-white text-sm font-bold shadow-2xl border border-blue-400/40 hover:bg-blue-500 transition-colors">
-                  <Box className="w-5 h-5" />
-                  {t("View 3D Preview", "عرض النموذج ثلاثي الأبعاد")}
-                  <ExternalLink className="w-4 h-4" />
-                </span>
-              </a>
-            )}
+                {(project.category ?? "").toLowerCase() === "3d" && project.liveUrl && (
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  >
+                    <span className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-blue-500/90 backdrop-blur-sm text-white text-sm font-bold shadow-2xl border border-blue-400/40 hover:bg-blue-500 transition-colors">
+                      <Box className="w-5 h-5" />
+                      {t("View 3D Preview", "عرض النموذج ثلاثي الأبعاد")}
+                      <ExternalLink className="w-4 h-4" />
+                    </span>
+                  </a>
+                )}
 
-            {/* Watermark */}
-            <div className="absolute bottom-4 right-4 pointer-events-none">
-              <span className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "rgba(34,211,238,0.3)", transform: "rotate(-8deg)", display: "block", transformOrigin: "bottom right" }}>
-                INFINITY.TECH
-              </span>
-            </div>
-          </div>
+                <div className="absolute bottom-4 right-4 pointer-events-none">
+                  <span className="text-[11px] font-mono font-bold tracking-widest uppercase" style={{ color: "rgba(34,211,238,0.3)", transform: "rotate(-8deg)", display: "block", transformOrigin: "bottom right" }}>
+                    INFINITY.TECH
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Tab Navigation */}
           <div className="border-b border-border mb-8">

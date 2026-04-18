@@ -66,6 +66,7 @@ export interface AdminProject {
   liveUrl?: string;
   category?: string;
   thumbnailUrl?: string;
+  videoUrl?: string;
   customSections: CustomSection[];
   timeline: { date: string; title: string; desc: string }[];
   files: ProjectFile[];
