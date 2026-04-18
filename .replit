@@ -70,7 +70,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-VAPID_PUBLIC_KEY = "BBkCQil5vnVlsYe-Na9JE9FExU5GJg6Oks1_EpV_ETkcqnm_CJiws6ESGwb43XPsRIBXD9ox3dVaF59yhdjXnHA"
+VAPID_PUBLIC_KEY = "BP_XoFiiYBiDHDGbqnwUQpk2gOLpwfnk1o1dpBiVT8mQS5LHnlEQuSLUCglZHzYoLjPdpJ3e7WWhpQRBNUaOQ0M"
 VAPID_EMAIL = "mailto:admin.infinity.tech@gmail.com"
 CLOUDINARY_CLOUD_NAME = "dvwzkyc4k"
 CLOUDINARY_API_KEY = "248518966117675"
