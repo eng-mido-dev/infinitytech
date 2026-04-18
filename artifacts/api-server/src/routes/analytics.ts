@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, analyticsEvents, projectStats } from "@workspace/db";
+import { db, analyticsEvents, projectStats, pool } from "@workspace/db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 
 /* ─── helpers ─────────────────────────────────────────────── */
@@ -159,6 +159,95 @@ router.get("/analytics/summary", async (_req, res) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return res.status(500).json({ error: msg });
+  }
+});
+
+// ── GET /api/analytics — real-time project aggregates for the Dashboard ──────
+// Returns four aggregate shapes from the projects table, all in a single
+// round-trip to Neon by running parallel queries via the connection pool.
+router.get("/analytics", async (_req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const [totals, byType, recent, perMonth] = await Promise.all([
+        // 1. Totals + media breakdown
+        client.query(`
+          SELECT
+            COUNT(*)::int                                                    AS total_projects,
+            COUNT(*) FILTER (WHERE model_3d_url IS NOT NULL)::int           AS has_3d,
+            COUNT(*) FILTER (WHERE video_url    IS NOT NULL)::int           AS has_video,
+            COUNT(*) FILTER (WHERE thumbnail_url IS NOT NULL)::int          AS has_thumbnail,
+            COUNT(*) FILTER (WHERE model_3d_url IS NULL
+                                AND video_url   IS NULL)::int               AS no_engineering
+          FROM projects
+        `),
+
+        // 2. Projects grouped by category — NULL / empty → "Uncategorized"
+        client.query(`
+          SELECT
+            COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') AS name,
+            COUNT(*)::int                                          AS value
+          FROM projects
+          GROUP BY 1
+          ORDER BY value DESC
+        `),
+
+        // 3. Five most recently created projects
+        client.query(`
+          SELECT id,
+                 COALESCE(NULLIF(title_en, ''), title_ar) AS title,
+                 status,
+                 COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') AS category,
+                 created_at
+          FROM projects
+          ORDER BY created_at DESC
+          LIMIT 5
+        `),
+
+        // 4. Projects created per calendar month (for bar chart, all time)
+        client.query(`
+          SELECT
+            TO_CHAR(DATE_TRUNC('month', created_at AT TIME ZONE 'UTC'), 'Mon ''YY') AS month,
+            DATE_TRUNC('month', created_at AT TIME ZONE 'UTC')                       AS month_ts,
+            COUNT(*)::int                                                             AS count
+          FROM projects
+          GROUP BY month_ts
+          ORDER BY month_ts
+        `),
+      ]);
+
+      const t = totals.rows[0];
+
+      console.log("[GET /analytics] ✓ Aggregates computed:", {
+        totalProjects: t.total_projects,
+        has3d: t.has_3d,
+        hasVideo: t.has_video,
+        categories: byType.rows.length,
+        months: perMonth.rows.length,
+      });
+
+      return res.json({
+        totalProjects:    t.total_projects,
+        mediaStats: {
+          has3d:           t.has_3d,
+          hasVideo:        t.has_video,
+          hasThumbnail:    t.has_thumbnail,
+          noEngineering:   t.no_engineering,
+        },
+        projectsByType:   byType.rows,          // [{ name, value }]
+        recentActivity:   recent.rows,           // [{ id, title, status, category, created_at }]
+        projectsPerMonth: perMonth.rows.map(r => ({
+          month: r.month,
+          count: r.count,
+        })),
+      });
+
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error("[GET /analytics] ✗ Error:", err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 
