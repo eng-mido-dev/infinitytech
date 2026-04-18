@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, projects, projectStats } from "@workspace/db";
+import { db, projects, projectStats, pool } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { getUploadSignature } from "../lib/cloudinary";
 import { autoTranslateFields } from "../lib/translate";
@@ -13,6 +13,36 @@ function requireAdmin(req: any, res: any, next: any) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
+}
+
+/**
+ * Verify the projects table exists and is writable before attempting an INSERT.
+ * Uses a raw SQL query against information_schema so the check is independent
+ * of Drizzle's connection state.
+ */
+async function checkTable(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query<{ column_name: string }>(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name   = 'projects'
+      ORDER BY ordinal_position
+    `);
+
+    if (result.rowCount === 0) {
+      throw new Error("projects table does not exist — run initDatabase() first");
+    }
+
+    const cols = result.rows.map(r => r.column_name);
+    console.log(`[checkTable] ✓ projects table ready — ${result.rowCount} columns: ${cols.join(", ")}`);
+  } catch (err) {
+    console.error("[checkTable] ✗ Table check failed:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 const ALLOWED_WRITE_FIELDS = new Set([
@@ -66,65 +96,80 @@ router.get("/projects/:id", async (req, res) => {
 
 // POST /api/projects — admin only
 router.post("/projects", requireAdmin, async (req, res) => {
-  // STEP A — log incoming request body exactly as received
-  console.log("[POST /projects] ▶ Incoming body:", JSON.stringify(req.body, null, 2));
+  // ── STEP A ── diagnostic marker visible in every log stream ─────────────────
+  console.log("--- ATTEMPTING SAVE ---", req.body);
 
   try {
+    // ── Table readiness check ──────────────────────────────────────────────────
+    await checkTable();
+
     let body = sanitizeBody(req.body) as any;
 
     if (!body.title_en && !body.title_ar) {
-      console.warn("[POST /projects] ✗ Rejected — missing title");
+      console.warn("[POST /projects] ✗ Rejected — title_en and title_ar are both empty");
       return res.status(400).json({ error: "title_en or title_ar is required" });
     }
 
-    // Cloudinary URLs arrive as plain strings from the frontend (already uploaded).
-    // Log what we received so we can confirm the URLs made it here.
+    // ── Log all media URLs so we can confirm they arrived ─────────────────────
     console.log("[POST /projects] ▶ Media URLs received:", {
       thumbnail_url: body.thumbnail_url ?? "(none)",
-      video_url: body.video_url ?? "(none)",
+      video_url:     body.video_url     ?? "(none)",
       assets_zip_url: body.assets_zip_url ?? "(none)",
     });
 
-    // Auto-translate missing bilingual fields if a translation service is configured
+    // ── Auto-translate missing bilingual fields ────────────────────────────────
     console.log("[POST /projects] ▶ Running auto-translate…");
     body = await autoTranslateFields(body);
-    console.log("[POST /projects] ✓ Translate done");
+    console.log("[POST /projects] ✓ Auto-translate done");
 
-    // STEP C — Build the DB payload; ensure JSONB fields are valid JSON (never undefined)
+    // ── Build DB payload ──────────────────────────────────────────────────────
+    // JSONB field (custom_sections) must be a valid JSON value — never undefined.
+    // Default to an empty object {} so Postgres accepts it without a type error.
     const payload = {
       ...body,
-      tags: Array.isArray(body.tags) ? body.tags : [],
-      status: body.status ?? "active",
-      custom_sections: body.custom_sections ?? null,
-      timeline: body.timeline ?? null,
-      files: body.files ?? null,
-      media: body.media ?? null,
-      updates: body.updates ?? null,
+      tags:            Array.isArray(body.tags) ? body.tags : [],
+      status:          body.status ?? "active",
+      custom_sections: body.custom_sections ?? {},   // {} so JSONB is always valid
+      timeline:        body.timeline ?? null,
+      files:           body.files    ?? null,
+      media:           body.media    ?? null,
+      updates:         body.updates  ?? null,
     };
 
+    // ── Equivalent SQL for visibility ─────────────────────────────────────────
+    // INSERT INTO projects (title_en, title_ar, thumbnail_url, video_url,
+    //   assets_zip_url, custom_sections, tags, status, ...) VALUES (...) RETURNING *;
     console.log("[POST /projects] ▶ INSERT INTO projects …", {
-      title_en: payload.title_en,
-      status: payload.status,
-      tags: payload.tags,
-      thumbnail_url: payload.thumbnail_url,
-      custom_sections_type: typeof payload.custom_sections,
+      title_en:             payload.title_en,
+      title_ar:             payload.title_ar,
+      thumbnail_url:        payload.thumbnail_url,
+      video_url:            payload.video_url,
+      status:               payload.status,
+      tags:                 payload.tags,
+      custom_sections_type: Array.isArray(payload.custom_sections) ? "array" : typeof payload.custom_sections,
+      custom_sections_len:  Array.isArray(payload.custom_sections) ? payload.custom_sections.length : "(object)",
     });
 
     const [row] = await db.insert(projects).values(payload).returning();
 
     if (!row) throw new Error("INSERT returned no row — check DB constraints");
 
-    // STEP D — Success; return the full saved object
-    console.log(`[POST /projects] ✓ Created project id=${row.id}`);
+    // ── STEP D — success ──────────────────────────────────────────────────────
+    console.log(`[POST /projects] ✓ Project saved — id=${row.id} title="${row.title_en}"`);
     res.status(201).json({ project: row });
+
   } catch (err: any) {
-    console.error("[POST /projects] ✗ Error:", {
+    // Log the FULL error object so every pg/Drizzle field is visible
+    console.error("[POST /projects] ✗ FULL ERROR OBJECT:", err);
+    console.error("[POST /projects] ✗ Summary:", {
       message: err.message,
-      code: err.code,
-      detail: err.detail,
-      stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+      code:    err.code,
+      detail:  err.detail,
+      hint:    err.hint,
+      where:   err.where,
+      stack:   err.stack?.split("\n").slice(0, 8).join("\n"),
     });
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message ?? "Internal server error" });
   }
 });
 

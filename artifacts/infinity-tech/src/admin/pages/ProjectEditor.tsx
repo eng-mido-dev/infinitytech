@@ -586,22 +586,26 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     try {
       if (mode === "create") {
         const p = await createProject(finalForm);
+        // STEP D — server confirmed the INSERT; project is now in the DB
         console.log("[Save] ✓ Project created — id:", p.id);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        alert("Project Saved Successfully!");
         navigate(`/admin/projects/${p.id}`);
       } else if (projectId) {
         await updateProject(projectId, finalForm, commitMsg || undefined);
+        // STEP D — server confirmed the UPDATE; changes are persisted
         console.log("[Save] ✓ Project updated — id:", projectId);
         setCommitMsg("");
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        alert("Project Saved Successfully!");
       }
-      // STEP D — Success is reflected immediately in the UI (button turns green)
     } catch (err: any) {
       const msg = err.message ?? "Save failed";
       console.error("[Save] ✗ Database write failed:", err);
       setSaveError(msg);
+      alert(`Save Failed: ${msg}`);
     } finally {
       setIsBusy(false);
     }
