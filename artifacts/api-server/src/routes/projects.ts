@@ -48,7 +48,8 @@ async function checkTable(): Promise<void> {
 const ALLOWED_WRITE_FIELDS = new Set([
   "title_en", "title_ar", "description_en", "description_ar",
   "overview_en", "overview_ar", "thumbnail_url", "video_url",
-  "assets_zip_url", "tags", "status", "github_url", "language",
+  "assets_zip_url", "model_3d_url", "bom_url",
+  "tags", "status", "github_url", "language",
   "timeline", "files", "media", "updates",
   "category", "live_link", "custom_sections",
 ]);
@@ -112,9 +113,11 @@ router.post("/projects", requireAdmin, async (req, res) => {
 
     // ── Log all media URLs so we can confirm they arrived ─────────────────────
     console.log("[POST /projects] ▶ Media URLs received:", {
-      thumbnail_url: body.thumbnail_url ?? "(none)",
-      video_url:     body.video_url     ?? "(none)",
+      thumbnail_url:  body.thumbnail_url  ?? "(none)",
+      video_url:      body.video_url      ?? "(none)",
       assets_zip_url: body.assets_zip_url ?? "(none)",
+      model_3d_url:   body.model_3d_url   ?? "(none)",
+      bom_url:        body.bom_url        ?? "(none)",
     });
 
     // ── Auto-translate missing bilingual fields ────────────────────────────────
@@ -129,11 +132,17 @@ router.post("/projects", requireAdmin, async (req, res) => {
       ...body,
       tags:            Array.isArray(body.tags) ? body.tags : [],
       status:          body.status ?? "active",
-      custom_sections: body.custom_sections ?? {},   // {} so JSONB is always valid
-      timeline:        body.timeline ?? null,
-      files:           body.files    ?? null,
-      media:           body.media    ?? null,
-      updates:         body.updates  ?? null,
+      custom_sections: body.custom_sections ?? {},
+      timeline:        body.timeline   ?? null,
+      files:           body.files      ?? null,
+      media:           body.media      ?? null,
+      updates:         body.updates    ?? null,
+      // Engineering files — store NULL rather than empty string so queries stay clean
+      model_3d_url:    body.model_3d_url  || null,
+      bom_url:         body.bom_url       || null,
+      thumbnail_url:   body.thumbnail_url || null,
+      video_url:       body.video_url     || null,
+      assets_zip_url:  body.assets_zip_url || null,
     };
 
     // ── Equivalent SQL for visibility ─────────────────────────────────────────
@@ -202,7 +211,9 @@ router.patch("/projects/:id", requireAdmin, async (req, res) => {
   console.log(`[PATCH /projects/${id}] ▶ Incoming fields:`, Object.keys(req.body));
   console.log(`[PATCH /projects/${id}] ▶ Media URLs:`, {
     thumbnail_url: req.body.thumbnail_url ?? "(unchanged)",
-    video_url: req.body.video_url ?? "(unchanged)",
+    video_url:     req.body.video_url     ?? "(unchanged)",
+    model_3d_url:  req.body.model_3d_url  ?? "(unchanged)",
+    bom_url:       req.body.bom_url       ?? "(unchanged)",
   });
 
   try {

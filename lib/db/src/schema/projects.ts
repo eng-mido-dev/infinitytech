@@ -18,6 +18,8 @@ export const projects = pgTable("projects", {
   thumbnail_url:  text("thumbnail_url"),
   video_url:      text("video_url"),
   assets_zip_url: text("assets_zip_url"),
+  model_3d_url:   text("model_3d_url"),
+  bom_url:        text("bom_url"),
   tags:           text("tags").array().notNull().default(sql`'{}'::text[]`),
   status:         text("status").notNull().default("active"),
   github_url:     text("github_url"),

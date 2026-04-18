@@ -72,9 +72,17 @@ const EMPTY_PROJECT: FormData = {
   liveUrl: "", category: "",
   thumbnailUrl: "",
   videoUrl: "",
+  model3dUrl: "",
+  bomUrl: "",
   customSections: [],
   timeline: [], files: [], media: [], updates: [],
 };
+
+/** Returns true for file extensions that must be uploaded as raw (not image/video). */
+function isEngineeringFile(file: File): boolean {
+  const ext = file.name.toLowerCase().split(".").pop() ?? "";
+  return ["glb", "step", "stp", "pdf", "xlsx", "xls", "zip"].includes(ext);
+}
 
 interface ProjectEditorProps {
   mode: "create" | "edit";
@@ -235,6 +243,8 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       liveUrl: p.liveUrl ?? "", category: p.category ?? "",
       thumbnailUrl: p.thumbnailUrl ?? "",
       videoUrl: p.videoUrl ?? "",
+      model3dUrl: p.model3dUrl ?? "",
+      bomUrl: p.bomUrl ?? "",
       customSections: p.customSections ?? [],
       timeline: p.timeline, files: p.files, media: p.media, updates: p.updates,
     };
@@ -259,6 +269,8 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       category: row.category ?? "",
       thumbnailUrl: row.thumbnail_url ?? "",
       videoUrl: row.video_url ?? "",
+      model3dUrl: row.model_3d_url ?? "",
+      bomUrl: row.bom_url ?? "",
       customSections,
       timeline: Array.isArray(row.timeline) ? row.timeline : [],
       files: Array.isArray(row.files) ? row.files : [],
@@ -316,6 +328,19 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Engineering files (3D model + BOM) ─────────────────────────────────────
+  const [model3dFile, setModel3dFile] = useState<File | null>(null);
+  const [model3dUploading, setModel3dUploading] = useState(false);
+  const [model3dUploadProgress, setModel3dUploadProgress] = useState(0);
+  const [model3dError, setModel3dError] = useState<string | null>(null);
+  const model3dInputRef = useRef<HTMLInputElement>(null);
+
+  const [bomFile, setBomFile] = useState<File | null>(null);
+  const [bomUploading, setBomUploading] = useState(false);
+  const [bomUploadProgress, setBomUploadProgress] = useState(0);
+  const [bomError, setBomError] = useState<string | null>(null);
+  const bomInputRef = useRef<HTMLInputElement>(null);
 
   const [addFileOpen, setAddFileOpen] = useState(false);
   const [fileForm, setFileForm] = useState<Omit<ProjectFile, "id" | "uploadedAt">>({
@@ -511,10 +536,14 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       title: finalForm.title,
       status: finalForm.status,
       tags: finalForm.tags,
-      thumbnailUrl: finalForm.thumbnailUrl,
-      videoUrl: finalForm.videoUrl,
+      thumbnailUrl: finalForm.thumbnailUrl || "(empty)",
+      videoUrl: finalForm.videoUrl || "(empty)",
+      model3dUrl: finalForm.model3dUrl || "(empty)",
+      bomUrl: finalForm.bomUrl || "(empty)",
       hasPendingThumbnail: !!thumbnailFile,
       hasPendingVideo: !!videoFile,
+      hasPending3dFile: !!model3dFile,
+      hasPendingBomFile: !!bomFile,
       customSections: finalForm.customSections?.length ?? 0,
     });
 
@@ -577,6 +606,70 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       setVideoUploading(false);
     }
 
+    // STEP B3 — Upload pending 3D model file (.glb / .step)
+    if (model3dFile) {
+      const ext = model3dFile.name.toLowerCase().split(".").pop() ?? "";
+      console.log(`[Save] ▶ Uploading 3D model: ${model3dFile.name} (.${ext}) — resource_type: raw`);
+      setModel3dUploading(true);
+      setModel3dUploadProgress(0);
+      setModel3dError(null);
+      try {
+        const url = await uploadToCloudinary(
+          model3dFile,
+          "raw",
+          "infinity-tech/engineering",
+          (pct) => setModel3dUploadProgress(pct),
+        );
+        console.log("[Save] ✓ 3D model URL:", url);
+        finalForm = { ...finalForm, model3dUrl: url };
+        setField("model3dUrl", url);
+        setModel3dFile(null);
+        if (model3dInputRef.current) model3dInputRef.current.value = "";
+        setModel3dUploadProgress(100);
+      } catch (err: any) {
+        const msg = `3D model upload failed: ${err.message ?? "Upload error"}`;
+        console.error("[Save] ✗ 3D model upload failed:", err);
+        setModel3dError(msg);
+        setSaveError(msg);
+        setModel3dUploading(false);
+        setIsBusy(false);
+        return;
+      }
+      setModel3dUploading(false);
+    }
+
+    // STEP B4 — Upload pending BOM file (.pdf / .xlsx)
+    if (bomFile) {
+      const ext = bomFile.name.toLowerCase().split(".").pop() ?? "";
+      console.log(`[Save] ▶ Uploading BOM: ${bomFile.name} (.${ext}) — resource_type: raw`);
+      setBomUploading(true);
+      setBomUploadProgress(0);
+      setBomError(null);
+      try {
+        const url = await uploadToCloudinary(
+          bomFile,
+          "raw",
+          "infinity-tech/engineering",
+          (pct) => setBomUploadProgress(pct),
+        );
+        console.log("[Save] ✓ BOM URL:", url);
+        finalForm = { ...finalForm, bomUrl: url };
+        setField("bomUrl", url);
+        setBomFile(null);
+        if (bomInputRef.current) bomInputRef.current.value = "";
+        setBomUploadProgress(100);
+      } catch (err: any) {
+        const msg = `BOM upload failed: ${err.message ?? "Upload error"}`;
+        console.error("[Save] ✗ BOM upload failed:", err);
+        setBomError(msg);
+        setSaveError(msg);
+        setBomUploading(false);
+        setIsBusy(false);
+        return;
+      }
+      setBomUploading(false);
+    }
+
     // STEP C — All media URLs are resolved; print the exact object going to the server
     console.log("[Save] ▶ FINAL PAYLOAD being sent to server:", {
       title: finalForm.title,
@@ -586,6 +679,8 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       tags: finalForm.tags,
       thumbnailUrl: finalForm.thumbnailUrl || "(empty)",
       videoUrl: finalForm.videoUrl || "(empty)",
+      model3dUrl: finalForm.model3dUrl || "(empty)",
+      bomUrl: finalForm.bomUrl || "(empty)",
       category: finalForm.category,
       githubUrl: finalForm.githubUrl,
       liveUrl: finalForm.liveUrl,
@@ -729,6 +824,10 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 ? "Uploading Image…"
                 : videoUploading
                 ? "Uploading Video…"
+                : model3dUploading
+                ? "Uploading 3D Model…"
+                : bomUploading
+                ? "Uploading BOM File…"
                 : saving
                 ? "Saving to Database…"
                 : "Uploading Assets…"}
@@ -738,20 +837,26 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
             </p>
           </div>
 
-          {/* Progress bar — shown while a file is uploading */}
-          {(thumbnailUploading || videoUploading) && (
-            <div className="w-56">
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-200"
-                  style={{ width: `${thumbnailUploading ? thumbnailUploadProgress : videoUploadProgress}%` }}
-                />
+          {/* Progress bar — shown while any file is uploading */}
+          {(thumbnailUploading || videoUploading || model3dUploading || bomUploading) && (() => {
+            const pct = thumbnailUploading ? thumbnailUploadProgress
+                      : videoUploading    ? videoUploadProgress
+                      : model3dUploading  ? model3dUploadProgress
+                      : bomUploadProgress;
+            return (
+              <div className="w-56">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-200"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-1.5">
+                  {pct}% complete
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground text-center mt-1.5">
-                {thumbnailUploading ? thumbnailUploadProgress : videoUploadProgress}% complete
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           {saving && (
             <p className="text-xs text-muted-foreground animate-pulse">Writing to database…</p>
@@ -798,6 +903,10 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
             ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading image…</>
             : videoUploading
             ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading video…</>
+            : model3dUploading
+            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading 3D…</>
+            : bomUploading
+            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading BOM…</>
             : saving
             ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Saving…</>
             : saved
@@ -1100,6 +1209,224 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* ── Engineering Files ── */}
+              <div className="rounded-xl border border-border overflow-hidden" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div className="px-4 py-3 border-b border-border/50 flex items-center gap-2">
+                  <Box className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">Engineering Files</span>
+                  <span className="text-xs text-muted-foreground ml-1">Uploaded to Cloudinary as raw files — 50 MB max each</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-border/50">
+
+                  {/* 3D Model (.glb / .step) */}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">3D Model</p>
+                      <p className="text-[11px] text-muted-foreground/60">Accepts .glb (web viewer) or .step / .stp (CAD)</p>
+                    </div>
+
+                    {form.model3dUrl ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                        <Box className="w-4 h-4 text-primary flex-shrink-0" />
+                        <a
+                          href={form.model3dUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary truncate flex-1 hover:underline font-mono"
+                          title={form.model3dUrl}
+                        >
+                          {form.model3dUrl.split("/").pop()?.split("?")[0] ?? "3D model"}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => { setField("model3dUrl", ""); setModel3dFile(null); if (model3dInputRef.current) model3dInputRef.current.value = ""; }}
+                          className="text-muted-foreground hover:text-red-400 flex-shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 rounded-lg border border-dashed border-border text-muted-foreground/40 text-xs">
+                        <Box className="w-4 h-4" />
+                        No 3D model yet
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => model3dInputRef.current?.click()}
+                        disabled={model3dUploading}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-semibold hover:bg-primary/20 transition-all disabled:opacity-60"
+                      >
+                        {model3dUploading
+                          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+                          : <><Upload className="w-3.5 h-3.5" /> Choose File</>
+                        }
+                      </button>
+                      {model3dFile && (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-muted/30 border border-border">
+                          <FileCode className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          <span className="text-[11px] text-foreground truncate font-mono">{model3dFile.name}</span>
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                            ({(model3dFile.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
+                          <button onClick={() => { setModel3dFile(null); if (model3dInputRef.current) model3dInputRef.current.value = ""; }} className="ml-auto text-muted-foreground hover:text-red-400 flex-shrink-0">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                      <input
+                        ref={model3dInputRef}
+                        type="file"
+                        accept=".glb,.step,.stp,model/gltf-binary,model/step,application/octet-stream"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          const ext = f.name.toLowerCase().split(".").pop() ?? "";
+                          console.log(`[3D Pick] name="${f.name}" ext=".${ext}" mime="${f.type}" size=${(f.size/1024/1024).toFixed(2)}MB`);
+                          setModel3dFile(f);
+                          setModel3dError(null);
+                          setModel3dUploadProgress(0);
+                        }}
+                      />
+                    </div>
+
+                    {model3dUploading && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</span>
+                          <span className="font-mono text-primary">{model3dUploadProgress}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${model3dUploadProgress}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    {model3dError && (
+                      <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1 flex items-center gap-1.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> {model3dError}
+                      </p>
+                    )}
+
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Or paste URL</p>
+                      <input
+                        className={inputCls}
+                        value={form.model3dUrl || ""}
+                        onChange={e => { setField("model3dUrl", e.target.value); if (e.target.value) { setModel3dFile(null); } }}
+                        placeholder="https://res.cloudinary.com/…/raw/upload/…"
+                      />
+                    </div>
+                  </div>
+
+                  {/* BOM (.pdf / .xlsx) */}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Bill of Materials (BOM)</p>
+                      <p className="text-[11px] text-muted-foreground/60">Accepts .pdf or .xlsx (.xls) spreadsheet</p>
+                    </div>
+
+                    {form.bomUrl ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                        <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                        <a
+                          href={form.bomUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary truncate flex-1 hover:underline font-mono"
+                          title={form.bomUrl}
+                        >
+                          {form.bomUrl.split("/").pop()?.split("?")[0] ?? "BOM file"}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => { setField("bomUrl", ""); setBomFile(null); if (bomInputRef.current) bomInputRef.current.value = ""; }}
+                          className="text-muted-foreground hover:text-red-400 flex-shrink-0"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 rounded-lg border border-dashed border-border text-muted-foreground/40 text-xs">
+                        <FileText className="w-4 h-4" />
+                        No BOM file yet
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => bomInputRef.current?.click()}
+                        disabled={bomUploading}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-semibold hover:bg-primary/20 transition-all disabled:opacity-60"
+                      >
+                        {bomUploading
+                          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+                          : <><Upload className="w-3.5 h-3.5" /> Choose File</>
+                        }
+                      </button>
+                      {bomFile && (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-muted/30 border border-border">
+                          <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          <span className="text-[11px] text-foreground truncate font-mono">{bomFile.name}</span>
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                            ({(bomFile.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
+                          <button onClick={() => { setBomFile(null); if (bomInputRef.current) bomInputRef.current.value = ""; }} className="ml-auto text-muted-foreground hover:text-red-400 flex-shrink-0">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                      <input
+                        ref={bomInputRef}
+                        type="file"
+                        accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          const ext = f.name.toLowerCase().split(".").pop() ?? "";
+                          console.log(`[BOM Pick] name="${f.name}" ext=".${ext}" mime="${f.type}" size=${(f.size/1024/1024).toFixed(2)}MB`);
+                          setBomFile(f);
+                          setBomError(null);
+                          setBomUploadProgress(0);
+                        }}
+                      />
+                    </div>
+
+                    {bomUploading && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</span>
+                          <span className="font-mono text-primary">{bomUploadProgress}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${bomUploadProgress}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    {bomError && (
+                      <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1 flex items-center gap-1.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> {bomError}
+                      </p>
+                    )}
+
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Or paste URL</p>
+                      <input
+                        className={inputCls}
+                        value={form.bomUrl || ""}
+                        onChange={e => { setField("bomUrl", e.target.value); if (e.target.value) { setBomFile(null); } }}
+                        placeholder="https://res.cloudinary.com/…/raw/upload/…"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
             </motion.div>

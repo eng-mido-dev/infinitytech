@@ -24,6 +24,8 @@ export async function initDatabase(): Promise<void> {
         thumbnail_url   TEXT,
         video_url       TEXT,
         assets_zip_url  TEXT,
+        model_3d_url    TEXT,
+        bom_url         TEXT,
         tags            TEXT[]      NOT NULL DEFAULT '{}',
         status          TEXT        NOT NULL DEFAULT 'active',
         github_url      TEXT,
@@ -85,6 +87,12 @@ export async function initDatabase(): Promise<void> {
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    // ── Engineering file columns — added in v2; safe to run on existing DBs ──
+    // ALTER TABLE ... ADD COLUMN IF NOT EXISTS is idempotent — no-op if column exists.
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS model_3d_url TEXT;`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS bom_url TEXT;`);
+    console.log("[DB] ✓ Engineering columns verified (model_3d_url, bom_url)");
 
     console.log("[DB] ✓ All tables verified / initialised");
   } catch (err) {

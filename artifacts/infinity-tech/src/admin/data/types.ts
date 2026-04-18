@@ -67,6 +67,8 @@ export interface AdminProject {
   category?: string;
   thumbnailUrl?: string;
   videoUrl?: string;
+  model3dUrl?: string;
+  bomUrl?: string;
   customSections: CustomSection[];
   timeline: { date: string; title: string; desc: string }[];
   files: ProjectFile[];
