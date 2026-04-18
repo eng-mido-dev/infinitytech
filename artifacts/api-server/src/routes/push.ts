@@ -12,7 +12,11 @@ const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY!;
 const VAPID_EMAIL   = process.env.VAPID_EMAIL || "mailto:admin@example.com";
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
-  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
+  try {
+    webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
+  } catch (err) {
+    logger.warn({ err }, "VAPID keys invalid — push notifications disabled");
+  }
 } else {
   logger.warn("VAPID keys missing — push notifications disabled");
 }
