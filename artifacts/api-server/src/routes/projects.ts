@@ -66,18 +66,34 @@ router.get("/projects/:id", async (req, res) => {
 
 // POST /api/projects — admin only
 router.post("/projects", requireAdmin, async (req, res) => {
+  // STEP A — log incoming request body exactly as received
+  console.log("[POST /projects] ▶ Incoming body:", JSON.stringify(req.body, null, 2));
+
   try {
     let body = sanitizeBody(req.body) as any;
+
     if (!body.title_en && !body.title_ar) {
+      console.warn("[POST /projects] ✗ Rejected — missing title");
       return res.status(400).json({ error: "title_en or title_ar is required" });
     }
 
-    body = await autoTranslateFields(body);
+    // Cloudinary URLs arrive as plain strings from the frontend (already uploaded).
+    // Log what we received so we can confirm the URLs made it here.
+    console.log("[POST /projects] ▶ Media URLs received:", {
+      thumbnail_url: body.thumbnail_url ?? "(none)",
+      video_url: body.video_url ?? "(none)",
+      assets_zip_url: body.assets_zip_url ?? "(none)",
+    });
 
-    // Ensure JSONB fields are proper objects (never undefined)
+    // Auto-translate missing bilingual fields if a translation service is configured
+    console.log("[POST /projects] ▶ Running auto-translate…");
+    body = await autoTranslateFields(body);
+    console.log("[POST /projects] ✓ Translate done");
+
+    // STEP C — Build the DB payload; ensure JSONB fields are valid JSON (never undefined)
     const payload = {
       ...body,
-      tags: body.tags ?? [],
+      tags: Array.isArray(body.tags) ? body.tags : [],
       status: body.status ?? "active",
       custom_sections: body.custom_sections ?? null,
       timeline: body.timeline ?? null,
@@ -86,13 +102,28 @@ router.post("/projects", requireAdmin, async (req, res) => {
       updates: body.updates ?? null,
     };
 
+    console.log("[POST /projects] ▶ INSERT INTO projects …", {
+      title_en: payload.title_en,
+      status: payload.status,
+      tags: payload.tags,
+      thumbnail_url: payload.thumbnail_url,
+      custom_sections_type: typeof payload.custom_sections,
+    });
+
     const [row] = await db.insert(projects).values(payload).returning();
 
     if (!row) throw new Error("INSERT returned no row — check DB constraints");
-    console.log(`[DB] Created project ${row.id}`);
+
+    // STEP D — Success; return the full saved object
+    console.log(`[POST /projects] ✓ Created project id=${row.id}`);
     res.status(201).json({ project: row });
   } catch (err: any) {
-    console.error("[DB] POST /projects error:", err);
+    console.error("[POST /projects] ✗ Error:", {
+      message: err.message,
+      code: err.code,
+      detail: err.detail,
+      stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -122,24 +153,44 @@ router.put("/projects/:id", requireAdmin, async (req, res) => {
 
 // PATCH /api/projects/:id — admin only
 router.patch("/projects/:id", requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  console.log(`[PATCH /projects/${id}] ▶ Incoming fields:`, Object.keys(req.body));
+  console.log(`[PATCH /projects/${id}] ▶ Media URLs:`, {
+    thumbnail_url: req.body.thumbnail_url ?? "(unchanged)",
+    video_url: req.body.video_url ?? "(unchanged)",
+  });
+
   try {
     let body = sanitizeBody(req.body) as any;
     if (Object.keys(body).length === 0) {
+      console.warn(`[PATCH /projects/${id}] ✗ No writable fields in body`);
       return res.status(400).json({ error: "No valid fields to update" });
     }
 
+    console.log(`[PATCH /projects/${id}] ▶ Running auto-translate…`);
     body = await autoTranslateFields(body);
+    console.log(`[PATCH /projects/${id}] ✓ Translate done`);
 
+    console.log(`[PATCH /projects/${id}] ▶ UPDATE projects SET … — ${Object.keys(body).join(", ")}`);
     const [row] = await db.update(projects)
       .set({ ...body, updated_at: new Date() })
-      .where(eq(projects.id, req.params.id))
+      .where(eq(projects.id, id))
       .returning();
 
-    if (!row) return res.status(404).json({ error: "Project not found" });
-    console.log(`[DB] PATCH project ${req.params.id} — fields: ${Object.keys(body).join(", ")}`);
+    if (!row) {
+      console.warn(`[PATCH /projects/${id}] ✗ Project not found`);
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    console.log(`[PATCH /projects/${id}] ✓ Updated — id=${row.id}`);
     res.json({ project: row });
   } catch (err: any) {
-    console.error(`[DB] PATCH /projects/${req.params.id} error:`, err);
+    console.error(`[PATCH /projects/${id}] ✗ Error:`, {
+      message: err.message,
+      code: err.code,
+      detail: err.detail,
+      stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+    });
     res.status(500).json({ error: err.message });
   }
 });

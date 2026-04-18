@@ -269,6 +269,8 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
   const [formReady, setFormReady] = useState(mode === "create");
   const [form, setForm] = useState<FormData>(existing ? toFormData(existing) : EMPTY_PROJECT);
+  /** Covers the full save pipeline: uploads + DB write. Disables the Save button. */
+  const [isBusy, setIsBusy] = useState(false);
 
   /**
    * On mount in edit mode: always fetch the latest project data from the API.
@@ -356,71 +358,92 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
   }
 
+  /**
+   * Upload a file directly to Cloudinary using a server-issued signature.
+   * Always uses resource_type=auto so images, videos, and 3D model files
+   * (GLB / STEP / OBJ / ZIP) are all handled by a single code path.
+   */
   async function uploadToCloudinary(
     file: File,
-    resourceType: "image" | "video" | "raw",
+    _resourceType: "image" | "video" | "raw",  // kept for signature-folder routing only
     folder: string,
     onProgress?: (pct: number) => void,
   ): Promise<string> {
     const pin = localStorage.getItem("it-admin-pin") || "admin2024";
 
-    // 1. Get a fresh signature from the server
+    console.log(`[Upload] ▶ Starting — file="${file.name}" size=${(file.size / 1024).toFixed(1)}KB folder="${folder}"`);
+
+    // STEP 1 — Get a fresh signed params object from the backend
     const sigRes = await fetch("/api/projects/asset-upload-signature", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-pin": pin },
-      body: JSON.stringify({ resourceType, folder }),
+      body: JSON.stringify({ resourceType: _resourceType, folder }),
     });
     if (!sigRes.ok) {
       const body = await sigRes.json().catch(() => ({}));
-      throw new Error((body as any).error ?? "Failed to get upload signature");
+      const msg = (body as any).error ?? "Failed to get upload signature";
+      console.error("[Upload] ✗ Signature request failed:", msg);
+      throw new Error(msg);
     }
     const sig = await sigRes.json();
+    console.log("[Upload] ✓ Signature obtained — timestamp:", sig.timestamp);
 
-    // 2. Build FormData — params must exactly match what was signed (folder + timestamp only)
+    // STEP 2 — Build the multipart form (params must exactly match signed set)
     const fd = new FormData();
     fd.append("file", file);
     fd.append("api_key", sig.apiKey);
     fd.append("timestamp", String(sig.timestamp));
     fd.append("signature", sig.signature);
-    fd.append("folder", sig.folder);   // must match signed folder exactly
+    fd.append("folder", sig.folder);
 
-    // 3. Upload via XHR so we can track progress
+    // STEP 3 — Upload via XHR with progress tracking.
+    //           Use resource_type=auto — handles images, videos, and raw 3D files.
     return new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(
         "POST",
-        `https://api.cloudinary.com/v1_1/${sig.cloudName}/${sig.resourceType}/upload`,
+        `https://api.cloudinary.com/v1_1/${sig.cloudName}/auto/upload`,
       );
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+          if (pct % 25 === 0) {
+            console.log(`[Upload] … ${pct}% complete`);
+          }
         }
       };
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText) as { secure_url: string };
+          const data = JSON.parse(xhr.responseText) as { secure_url: string; resource_type: string };
           let url = data.secure_url;
-          // Inject auto optimisation transforms
-          if (resourceType === "image" && url.includes("cloudinary.com")) {
-            url = url.replace("/upload/", "/upload/f_auto,q_auto/");
-          } else if (resourceType === "video" && url.includes("cloudinary.com")) {
+          // Inject auto-quality / auto-format optimisation transforms for media
+          if (url.includes("cloudinary.com") && url.includes("/upload/")) {
             url = url.replace("/upload/", "/upload/f_auto,q_auto/");
           }
+          console.log("[Upload] ✓ Cloudinary upload success:", url);
           resolve(url);
         } else {
-          let msg = "Upload failed";
+          let msg = "Cloudinary upload failed";
           try {
             const err = JSON.parse(xhr.responseText);
             msg = err?.error?.message ?? msg;
           } catch {}
+          console.error("[Upload] ✗ Cloudinary responded with error:", xhr.status, msg);
           reject(new Error(msg));
         }
       };
 
-      xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.ontimeout = () => reject(new Error("Upload timed out"));
+      xhr.onerror = () => {
+        console.error("[Upload] ✗ Network error");
+        reject(new Error("Network error during upload"));
+      };
+      xhr.ontimeout = () => {
+        console.error("[Upload] ✗ Upload timed out");
+        reject(new Error("Upload timed out"));
+      };
       xhr.send(fd);
     });
   }
@@ -475,38 +498,112 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   }
 
   async function handleSave() {
+    if (isBusy) return;
     setSaveError(null);
+    setSaved(false);
+    setIsBusy(true);
     let finalForm = { ...form };
 
+    // STEP A — Log the form snapshot so every field is visible in the console
+    console.log("[Save] ▶ Pipeline start", {
+      mode,
+      projectId,
+      title: finalForm.title,
+      status: finalForm.status,
+      tags: finalForm.tags,
+      thumbnailUrl: finalForm.thumbnailUrl,
+      videoUrl: finalForm.videoUrl,
+      hasPendingThumbnail: !!thumbnailFile,
+      hasPendingVideo: !!videoFile,
+      customSections: finalForm.customSections?.length ?? 0,
+    });
+
+    // STEP B1 — Upload pending thumbnail (if user picked a new file)
     if (thumbnailFile) {
+      console.log("[Save] ▶ Uploading thumbnail:", thumbnailFile.name);
       setThumbnailUploading(true);
       try {
-        const url = await uploadThumbnail(thumbnailFile);
+        const url = await uploadToCloudinary(
+          thumbnailFile,
+          "image",
+          "infinity-tech",
+          (pct) => setThumbnailUploadProgress(pct),
+        );
+        console.log("[Save] ✓ Thumbnail URL:", url);
         finalForm = { ...finalForm, thumbnailUrl: url };
         setField("thumbnailUrl", url);
         clearThumbnailFile();
       } catch (err: any) {
-        setThumbnailError(err.message ?? "Image upload failed");
+        const msg = `Cloudinary Upload Failed: ${err.message ?? "Image upload error"}`;
+        console.error("[Save] ✗ Thumbnail upload failed:", err);
+        setThumbnailError(msg);
+        setSaveError(msg);
         setThumbnailUploading(false);
+        setIsBusy(false);
         return;
       }
       setThumbnailUploading(false);
     }
 
+    // STEP B2 — Upload pending video (user may have picked a file without clicking "Upload")
+    if (videoFile) {
+      console.log("[Save] ▶ Uploading video:", videoFile.name);
+      setVideoUploading(true);
+      setVideoUploadProgress(0);
+      try {
+        const url = await uploadToCloudinary(
+          videoFile,
+          "video",
+          "infinity-tech/videos",
+          (pct) => setVideoUploadProgress(pct),
+        );
+        console.log("[Save] ✓ Video URL:", url);
+        finalForm = { ...finalForm, videoUrl: url };
+        setField("videoUrl", url);
+        if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+        setVideoFile(null);
+        setVideoLocalUrl(null);
+        if (videoInputRef.current) videoInputRef.current.value = "";
+        setVideoUploadProgress(100);
+      } catch (err: any) {
+        const msg = `Cloudinary Upload Failed: ${err.message ?? "Video upload error"}`;
+        console.error("[Save] ✗ Video upload failed:", err);
+        setVideoError(msg);
+        setSaveError(msg);
+        setVideoUploading(false);
+        setIsBusy(false);
+        return;
+      }
+      setVideoUploading(false);
+    }
+
+    // STEP C — All media URLs are resolved; write to the database
+    console.log("[Save] ▶ Sending to database", {
+      thumbnailUrl: finalForm.thumbnailUrl,
+      videoUrl: finalForm.videoUrl,
+      customSectionsCount: finalForm.customSections?.length ?? 0,
+    });
     try {
       if (mode === "create") {
         const p = await createProject(finalForm);
+        console.log("[Save] ✓ Project created — id:", p.id);
         setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        setTimeout(() => setSaved(false), 3000);
         navigate(`/admin/projects/${p.id}`);
       } else if (projectId) {
         await updateProject(projectId, finalForm, commitMsg || undefined);
+        console.log("[Save] ✓ Project updated — id:", projectId);
         setCommitMsg("");
         setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        setTimeout(() => setSaved(false), 3000);
       }
+      // STEP D — Success is reflected immediately in the UI (button turns green)
     } catch (err: any) {
-      setSaveError(err.message ?? "Save failed");
+      const msg = err.message ?? "Save failed";
+      console.error("[Save] ✗ Database write failed:", err);
+      setSaveError(msg);
+    } finally {
+      setIsBusy(false);
     }
   }
 
@@ -611,7 +708,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={isBusy}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
             saved
               ? "bg-emerald-500 text-white"
@@ -620,13 +717,17 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
               : "bg-primary hover:bg-primary/90 text-primary-foreground hover:shadow-lg hover:shadow-primary/25"
           }`}
         >
-          {saving
+          {thumbnailUploading
+            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading image…</>
+            : videoUploading
+            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading video…</>
+            : saving
             ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Saving…</>
             : saved
             ? <><CheckCircle2 className="w-4 h-4" /> Saved!</>
             : saveError
-            ? <><AlertCircle className="w-4 h-4" /> Error</>
-            : <><Save className="w-4 h-4" /> {mode === "create" ? "Create" : "Save"}</>
+            ? <><AlertCircle className="w-4 h-4" /> Error — retry?</>
+            : <><Save className="w-4 h-4" /> {mode === "create" ? "Create Project" : "Save Changes"}</>
           }
         </button>
       </div>
