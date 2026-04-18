@@ -37,6 +37,17 @@ const engineeringUpload = multer({
   { name: "bom_file", maxCount: 1 },
 ]);
 
+// Multer for unified project creation — accepts all 4 media fields + metadata
+const createUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+}).fields([
+  { name: "thumbnail", maxCount: 1 },
+  { name: "video",     maxCount: 1 },
+  { name: "model_3d",  maxCount: 1 },
+  { name: "bom_file",  maxCount: 1 },
+]);
+
 const router = Router();
 
 function requireAdmin(req: any, res: any, next: any) {
@@ -129,38 +140,126 @@ router.get("/projects/:id", async (req, res) => {
 });
 
 // POST /api/projects — admin only
-router.post("/projects", requireAdmin, async (req, res) => {
-  // ── STEP A ── diagnostic marker visible in every log stream ─────────────────
-  console.log("--- ATTEMPTING SAVE ---", req.body);
+// Accepts multipart/form-data with:
+//   - "meta"      — JSON string of all project metadata fields (snake_case, from adminToDb())
+//   - "thumbnail" — image file (optional, resource_type: image)
+//   - "video"     — video file (optional, resource_type: video)
+//   - "model_3d"  — 3D model file (optional, resource_type: raw)
+//   - "bom_file"  — BOM document (optional, resource_type: raw)
+// Flow: A) Cloudinary uploads → B) URL collection → C) Single Neon INSERT
+router.post("/projects", requireAdmin, (req: any, res: any) => {
+  createUpload(req, res, async (multerErr: any) => {
+    if (multerErr) {
+      console.error("[POST /projects] ✗ Multer error:", multerErr.message);
+      return res.status(400).json({ error: `File error: ${multerErr.message}` });
+    }
 
-  try {
-    // ── Table readiness check ──────────────────────────────────────────────────
-    await checkTable();
+    console.log("--- ATTEMPTING SAVE (unified FormData flow) ---");
 
-    let body = sanitizeBody(req.body) as any;
+    // ── Parse metadata JSON field sent by the frontend ─────────────────────────
+    let meta: Record<string, unknown> = {};
+    try {
+      meta = JSON.parse((req.body as any).meta || "{}");
+    } catch (parseErr) {
+      console.warn("[POST /projects] ⚠ Could not parse meta JSON — falling back to raw body fields");
+      meta = req.body as Record<string, unknown>;
+    }
+
+    const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
+    console.log("[POST /projects] ▶ Files received:", {
+      thumbnail: files["thumbnail"]?.[0]?.originalname ?? "(none)",
+      video:     files["video"]?.[0]?.originalname     ?? "(none)",
+      model_3d:  files["model_3d"]?.[0]?.originalname  ?? "(none)",
+      bom_file:  files["bom_file"]?.[0]?.originalname  ?? "(none)",
+    });
+
+    let body = sanitizeBody(meta) as any;
 
     if (!body.title_en && !body.title_ar) {
       console.warn("[POST /projects] ✗ Rejected — title_en and title_ar are both empty");
       return res.status(400).json({ error: "title_en or title_ar is required" });
     }
 
-    // ── Log all media URLs so we can confirm they arrived ─────────────────────
-    console.log("[POST /projects] ▶ Media URLs received:", {
-      thumbnail_url:  body.thumbnail_url  ?? "(none)",
-      video_url:      body.video_url      ?? "(none)",
-      assets_zip_url: body.assets_zip_url ?? "(none)",
-      model_3d_url:   body.model_3d_url   ?? "(none)",
-      bom_url:        body.bom_url        ?? "(none)",
+    // ── Table readiness check ──────────────────────────────────────────────────
+    try {
+      await checkTable();
+    } catch (err: any) {
+      console.error("[POST /projects] ✗ Table check failed:", err);
+      return res.status(500).json({ error: `Neon DB Error: ${err.message}` });
+    }
+
+    // ── A) Cloudinary uploads ──────────────────────────────────────────────────
+    // Start with any URLs the frontend already resolved (URL-paste fields).
+    // File uploads ALWAYS win and overwrite the pasted URL.
+    const urls = {
+      thumbnail_url:  (body.thumbnail_url  as string | null) || null,
+      video_url:      (body.video_url      as string | null) || null,
+      model_3d_url:   (body.model_3d_url   as string | null) || null,
+      bom_url:        (body.bom_url        as string | null) || null,
+      assets_zip_url: (body.assets_zip_url as string | null) || null,
+    };
+
+    try {
+      if (files["thumbnail"]?.[0]) {
+        console.log("[POST /projects] ▶ Uploading thumbnail to Cloudinary…");
+        urls.thumbnail_url = await uploadBufferToCloudinary(files["thumbnail"][0].buffer, {
+          resource_type: "image",
+          folder: "infinity-tech",
+        });
+        console.log("[POST /projects] ✓ Thumbnail URL:", urls.thumbnail_url);
+      }
+
+      if (files["video"]?.[0]) {
+        console.log("[POST /projects] ▶ Uploading video to Cloudinary…");
+        urls.video_url = await uploadBufferToCloudinary(files["video"][0].buffer, {
+          resource_type: "video",
+          folder: "infinity-tech/videos",
+        });
+        console.log("[POST /projects] ✓ Video URL:", urls.video_url);
+      }
+
+      if (files["model_3d"]?.[0]) {
+        console.log("[POST /projects] ▶ Uploading 3D model to Cloudinary…");
+        urls.model_3d_url = await uploadBufferToCloudinary(files["model_3d"][0].buffer, {
+          resource_type: "raw",
+          folder: "infinity-tech/engineering",
+        });
+        console.log("[POST /projects] ✓ 3D model URL:", urls.model_3d_url);
+      }
+
+      if (files["bom_file"]?.[0]) {
+        console.log("[POST /projects] ▶ Uploading BOM to Cloudinary…");
+        urls.bom_url = await uploadBufferToCloudinary(files["bom_file"][0].buffer, {
+          resource_type: "raw",
+          folder: "infinity-tech/engineering",
+        });
+        console.log("[POST /projects] ✓ BOM URL:", urls.bom_url);
+      }
+    } catch (err: any) {
+      console.error("[POST /projects] ✗ Cloudinary Error:", err);
+      return res.status(500).json({ error: `Cloudinary Error: ${err.message}` });
+    }
+
+    // ── B) Merge Cloudinary URLs into the metadata body ────────────────────────
+    body = { ...body, ...urls };
+    console.log("[POST /projects] ▶ Media URLs resolved:", {
+      thumbnail_url:  urls.thumbnail_url  ?? "(none)",
+      video_url:      urls.video_url      ?? "(none)",
+      model_3d_url:   urls.model_3d_url   ?? "(none)",
+      bom_url:        urls.bom_url        ?? "(none)",
+      assets_zip_url: urls.assets_zip_url ?? "(none)",
     });
 
     // ── Auto-translate missing bilingual fields ────────────────────────────────
     console.log("[POST /projects] ▶ Running auto-translate…");
-    body = await autoTranslateFields(body);
+    try {
+      body = await autoTranslateFields(body);
+    } catch (transErr: any) {
+      console.warn("[POST /projects] ⚠ Auto-translate failed (non-fatal):", transErr.message);
+    }
     console.log("[POST /projects] ✓ Auto-translate done");
 
-    // ── Build DB payload ──────────────────────────────────────────────────────
-    // JSONB field (custom_sections) must be a valid JSON value — never undefined.
-    // Default to an empty object {} so Postgres accepts it without a type error.
+    // ── C) Single INSERT into Neon ─────────────────────────────────────────────
     const payload = {
       ...body,
       tags:            Array.isArray(body.tags) ? body.tags : [],
@@ -170,49 +269,45 @@ router.post("/projects", requireAdmin, async (req, res) => {
       files:           body.files      ?? null,
       media:           body.media      ?? null,
       updates:         body.updates    ?? null,
-      // Engineering files — store NULL rather than empty string so queries stay clean
-      model_3d_url:    body.model_3d_url  || null,
-      bom_url:         body.bom_url       || null,
-      thumbnail_url:   body.thumbnail_url || null,
-      video_url:       body.video_url     || null,
-      assets_zip_url:  body.assets_zip_url || null,
+      // Explicit NULL coercion — never store empty string in URL columns
+      thumbnail_url:   urls.thumbnail_url  || null,
+      video_url:       urls.video_url      || null,
+      model_3d_url:    urls.model_3d_url   || null,
+      bom_url:         urls.bom_url        || null,
+      assets_zip_url:  urls.assets_zip_url || null,
     };
 
-    // ── Equivalent SQL for visibility ─────────────────────────────────────────
-    // INSERT INTO projects (title_en, title_ar, thumbnail_url, video_url,
-    //   assets_zip_url, custom_sections, tags, status, ...) VALUES (...) RETURNING *;
-    console.log("[POST /projects] ▶ INSERT INTO projects …", {
-      title_en:             payload.title_en,
-      title_ar:             payload.title_ar,
-      thumbnail_url:        payload.thumbnail_url,
-      video_url:            payload.video_url,
-      status:               payload.status,
-      tags:                 payload.tags,
-      custom_sections_type: Array.isArray(payload.custom_sections) ? "array" : typeof payload.custom_sections,
-      custom_sections_len:  Array.isArray(payload.custom_sections) ? payload.custom_sections.length : "(object)",
+    console.log("[POST /projects] ▶ INSERT INTO projects:", {
+      title_en:      payload.title_en,
+      title_ar:      payload.title_ar,
+      status:        payload.status,
+      thumbnail_url: payload.thumbnail_url,
+      video_url:     payload.video_url,
+      model_3d_url:  payload.model_3d_url,
+      bom_url:       payload.bom_url,
+      tags:          payload.tags,
     });
 
-    const [row] = await db.insert(projects).values(payload).returning();
+    try {
+      const [row] = await db.insert(projects).values(payload).returning();
 
-    if (!row) throw new Error("INSERT returned no row — check DB constraints");
+      if (!row) throw new Error("INSERT returned no row — check DB constraints");
 
-    // ── STEP D — success ──────────────────────────────────────────────────────
-    console.log(`[POST /projects] ✓ Project saved — id=${row.id} title="${row.title_en}"`);
-    res.status(201).json({ project: row });
+      console.log(`[POST /projects] ✓ Project saved — id=${row.id} title="${row.title_en}"`);
+      return res.status(201).json({ project: row });
 
-  } catch (err: any) {
-    // Log the FULL error object so every pg/Drizzle field is visible
-    console.error("[POST /projects] ✗ FULL ERROR OBJECT:", err);
-    console.error("[POST /projects] ✗ Summary:", {
-      message: err.message,
-      code:    err.code,
-      detail:  err.detail,
-      hint:    err.hint,
-      where:   err.where,
-      stack:   err.stack?.split("\n").slice(0, 8).join("\n"),
-    });
-    res.status(500).json({ error: err.message ?? "Internal server error" });
-  }
+    } catch (err: any) {
+      console.error("[POST /projects] ✗ Neon DB Error:", {
+        message: err.message,
+        code:    err.code,
+        detail:  err.detail,
+        hint:    err.hint,
+        where:   err.where,
+        stack:   err.stack?.split("\n").slice(0, 8).join("\n"),
+      });
+      return res.status(500).json({ error: `Neon DB Error: ${err.message}` });
+    }
+  });
 });
 
 // PUT /api/projects/:id — admin only (full replace)

@@ -65,7 +65,7 @@ function dbToAdmin(row: Record<string, any>): AdminProject {
   };
 }
 
-function adminToDb(p: Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "commits" | "views" | "downloads">) {
+export function adminToDb(p: Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "commits" | "views" | "downloads">) {
   return {
     title_en: p.title,
     title_ar: p.titleAr,

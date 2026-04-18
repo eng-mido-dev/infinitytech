@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useStore } from "@/admin/data/store";
+import { useStore, adminToDb } from "@/admin/data/store";
+import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
   AdminProject, ProjectStatus, FileType, UpdateType, ProjectFile, ProjectUpdate, CustomSection,
@@ -230,6 +231,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     addFile, removeFile, addMedia, removeMedia,
     addUpdate, removeUpdate, saving, error: storeError,
   } = useStore();
+  const { toast } = useToast();
 
   const existing = projectId ? getProject(projectId) : null;
 
@@ -527,248 +529,217 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     setSaveError(null);
     setSaved(false);
     setIsBusy(true);
-    let finalForm = { ...form };
+    const finalForm = { ...form };
 
-    // STEP A — Log the form snapshot so every field is visible in the console
+    // ── STEP A — Console snapshot ─────────────────────────────────────────────
     console.log("[Save] ▶ Pipeline start", {
       mode,
       projectId,
-      title: finalForm.title,
-      status: finalForm.status,
-      tags: finalForm.tags,
-      thumbnailUrl: finalForm.thumbnailUrl || "(empty)",
-      videoUrl: finalForm.videoUrl || "(empty)",
-      model3dUrl: finalForm.model3dUrl || "(empty)",
-      bomUrl: finalForm.bomUrl || "(empty)",
+      title:               finalForm.title         || "(empty)",
+      titleAr:             finalForm.titleAr        || "(empty)",
+      status:              finalForm.status,
+      tags:                finalForm.tags,
+      thumbnailUrl:        finalForm.thumbnailUrl   || "(empty)",
+      videoUrl:            finalForm.videoUrl       || "(empty)",
+      model3dUrl:          finalForm.model3dUrl     || "(empty)",
+      bomUrl:              finalForm.bomUrl         || "(empty)",
       hasPendingThumbnail: !!thumbnailFile,
-      hasPendingVideo: !!videoFile,
-      hasPending3dFile: !!model3dFile,
-      hasPendingBomFile: !!bomFile,
-      customSections: finalForm.customSections?.length ?? 0,
+      hasPendingVideo:     !!videoFile,
+      hasPending3dFile:    !!model3dFile,
+      hasPendingBomFile:   !!bomFile,
+      customSections:      finalForm.customSections?.length ?? 0,
     });
 
-    // STEP B1 — Upload pending thumbnail (if user picked a new file)
-    if (thumbnailFile) {
-      console.log("[Save] ▶ Uploading thumbnail:", thumbnailFile.name);
-      setThumbnailUploading(true);
-      try {
-        const url = await uploadToCloudinary(
-          thumbnailFile,
-          "image",
-          "infinity-tech",
-          (pct) => setThumbnailUploadProgress(pct),
-        );
-        console.log("[Save] ✓ Thumbnail URL:", url);
-        finalForm = { ...finalForm, thumbnailUrl: url };
-        setField("thumbnailUrl", url);
-        clearThumbnailFile();
-      } catch (err: any) {
-        const msg = `Cloudinary Upload Failed: ${err.message ?? "Image upload error"}`;
-        console.error("[Save] ✗ Thumbnail upload failed:", err);
-        setThumbnailError(msg);
-        setSaveError(msg);
-        setThumbnailUploading(false);
-        setIsBusy(false);
-        return;
-      }
-      setThumbnailUploading(false);
-    }
-
-    // STEP B2 — Upload pending video (user may have picked a file without clicking "Upload")
-    if (videoFile) {
-      console.log("[Save] ▶ Uploading video:", videoFile.name);
-      setVideoUploading(true);
-      setVideoUploadProgress(0);
-      try {
-        const url = await uploadToCloudinary(
-          videoFile,
-          "video",
-          "infinity-tech/videos",
-          (pct) => setVideoUploadProgress(pct),
-        );
-        console.log("[Save] ✓ Video URL:", url);
-        finalForm = { ...finalForm, videoUrl: url };
-        setField("videoUrl", url);
-        if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
-        setVideoFile(null);
-        setVideoLocalUrl(null);
-        if (videoInputRef.current) videoInputRef.current.value = "";
-        setVideoUploadProgress(100);
-      } catch (err: any) {
-        const msg = `Cloudinary Upload Failed: ${err.message ?? "Video upload error"}`;
-        console.error("[Save] ✗ Video upload failed:", err);
-        setVideoError(msg);
-        setSaveError(msg);
-        setVideoUploading(false);
-        setIsBusy(false);
-        return;
-      }
-      setVideoUploading(false);
-    }
-
-    // STEP B3/B4 — Engineering files are handled via FormData through the backend.
-    // The actual POST happens inside the main try block once we have a project ID
-    // (for CREATE it runs after the INSERT; for EDIT it runs before the PATCH).
-    // Nothing to do here — proceed to payload validation and DB write.
-
-    // STEP C — Print the exact object going to the server
-    console.log("[Save] ▶ FINAL PAYLOAD being sent to server:", {
-      title: finalForm.title,
-      titleAr: finalForm.titleAr,
-      description: finalForm.description,
-      status: finalForm.status,
-      tags: finalForm.tags,
-      thumbnailUrl: finalForm.thumbnailUrl || "(empty)",
-      videoUrl: finalForm.videoUrl || "(empty)",
-      model3dUrl: finalForm.model3dUrl || "(empty)",
-      bomUrl: finalForm.bomUrl || "(empty)",
-      category: finalForm.category,
-      githubUrl: finalForm.githubUrl,
-      liveUrl: finalForm.liveUrl,
-      customSectionsCount: finalForm.customSections?.length ?? 0,
-      timelineCount: finalForm.timeline?.length ?? 0,
-    });
-
-    // Abort here if a required field is still missing — surface the error before
-    // hitting the network so the user sees a clear message rather than a 400.
+    // ── Front-end validation ──────────────────────────────────────────────────
     if (!finalForm.title && !finalForm.titleAr) {
       setSaveError("Title (English or Arabic) is required before saving.");
       setIsBusy(false);
       return;
     }
 
-    // ── STEP B.eng — Engineering files via FormData through the backend ─────────
-    // Builds a FormData with model_3d and bom_file, logs all keys to the console,
-    // then POSTs to /api/projects/:id/engineering-files.  The backend runs multer
-    // (memory storage), uploads each file to Cloudinary with resource_type: raw,
-    // writes model_3d_url / bom_url to the DB row, and returns the full project.
-    // Returns the updated { model3dUrl, bomUrl } so callers can patch finalForm.
-    async function sendEngineeringFiles(id: string): Promise<{ model3dUrl: string; bomUrl: string }> {
-      const fd = new FormData();
+    const pin = localStorage.getItem("it-admin-pin") || "admin2024";
 
-      if (model3dFile) {
-        fd.append("model_3d", model3dFile, model3dFile.name);
-        setModel3dUploading(true);
-        setModel3dUploadProgress(0);
-        console.log(`[Save] ▶ Engineering — model_3d: "${model3dFile.name}" (${(model3dFile.size / 1024 / 1024).toFixed(2)} MB)`);
-      }
-      if (bomFile) {
-        fd.append("bom_file", bomFile, bomFile.name);
-        setBomUploading(true);
-        setBomUploadProgress(0);
-        console.log(`[Save] ▶ Engineering — bom_file: "${bomFile.name}" (${(bomFile.size / 1024 / 1024).toFixed(2)} MB)`);
-      }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── CREATE PATH — single FormData POST; backend handles ALL Cloudinary uploads
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (mode === "create") {
+      // Mark uploading states for overlay feedback
+      if (thumbnailFile) { setThumbnailUploading(true); setThumbnailUploadProgress(0); }
+      if (videoFile)     { setVideoUploading(true);     setVideoUploadProgress(0); }
+      if (model3dFile)   { setModel3dUploading(true);   setModel3dUploadProgress(0); }
+      if (bomFile)       { setBomUploading(true);        setBomUploadProgress(0); }
 
-      // ── Crucial log: print every key in the FormData before the fetch ───────
-      const fdKeys: string[] = [];
-      for (const k of fd.keys()) fdKeys.push(k);
-      console.log("[Save] ▶ FormData keys before POST /engineering-files:", fdKeys);
-      // Expected output: ["model_3d"] or ["bom_file"] or ["model_3d", "bom_file"]
+      try {
+        // Serialize all metadata (snake_case) as a JSON string in the "meta" field.
+        // adminToDb() converts AdminProject camelCase → DB snake_case and NULL-coerces
+        // empty URL strings so the backend INSERT never stores empty strings in URL cols.
+        const meta = adminToDb(finalForm);
+        const fd = new FormData();
+        fd.append("meta", JSON.stringify(meta));
 
-      const pin = localStorage.getItem("it-admin-pin") || "admin2024";
+        if (thumbnailFile) fd.append("thumbnail", thumbnailFile, thumbnailFile.name);
+        if (videoFile)     fd.append("video",     videoFile,     videoFile.name);
+        if (model3dFile)   fd.append("model_3d",  model3dFile,  model3dFile.name);
+        if (bomFile)       fd.append("bom_file",  bomFile,      bomFile.name);
 
-      // Do NOT set Content-Type — the browser sets it with the multipart boundary automatically
-      const engRes = await fetch(`/api/projects/${id}/engineering-files`, {
-        method: "POST",
-        headers: { "x-admin-pin": pin },
-        body: fd,
-      });
+        // ── Log every FormData key so files are visible in the console ─────────
+        const fdKeys: string[] = [];
+        for (const k of fd.keys()) fdKeys.push(k);
+        console.log("[Save] ▶ FormData keys before POST /api/projects:", fdKeys);
+        // Expected: ["meta"] + any subset of ["thumbnail","video","model_3d","bom_file"]
 
-      if (!engRes.ok) {
-        const body = await engRes.json().catch(() => ({}));
-        const msg = (body as any).error ?? `Engineering upload failed (HTTP ${engRes.status})`;
-        console.error("[Save] ✗ Engineering-files endpoint error:", msg);
-        throw new Error(msg);
-      }
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "x-admin-pin": pin },
+          // Do NOT set Content-Type — the browser adds multipart boundary automatically
+          body: fd,
+        });
 
-      const { project: row } = await engRes.json();
-      console.log("[Save] ✓ Engineering files confirmed by backend:", {
-        model_3d_url: row.model_3d_url ?? "(none)",
-        bom_url:      row.bom_url      ?? "(none)",
-      });
+        const json = await res.json().catch(() => ({}));
 
-      // Clear file pickers; update form state with the persisted URLs
-      if (row.model_3d_url) {
-        setField("model3dUrl", row.model_3d_url);
-        setModel3dFile(null);
-        if (model3dInputRef.current) model3dInputRef.current.value = "";
-      }
-      if (row.bom_url) {
-        setField("bomUrl", row.bom_url);
-        setBomFile(null);
-        if (bomInputRef.current) bomInputRef.current.value = "";
-      }
-
-      setModel3dUploading(false);
-      setBomUploading(false);
-      setModel3dUploadProgress(100);
-      setBomUploadProgress(100);
-
-      return { model3dUrl: row.model_3d_url ?? "", bomUrl: row.bom_url ?? "" };
-    }
-
-    try {
-      let savedId: string | null = null;
-
-      if (mode === "create") {
-        console.log("[Save] ▶ Calling createProject — waiting for server 201…");
-        const p = await createProject(finalForm);
-        savedId = p.id;
-        console.log("[Save] ✓ Server responded 201 — project id:", p.id);
-
-        // Engineering files require a project ID — send them AFTER INSERT
-        if (model3dFile || bomFile) {
-          console.log("[Save] ▶ Sending engineering files for new project…");
-          try {
-            const { model3dUrl, bomUrl } = await sendEngineeringFiles(savedId);
-            // Update finalForm in case anything downstream needs the URLs
-            finalForm = { ...finalForm, model3dUrl, bomUrl };
-          } catch (engErr: any) {
-            // Engineering upload failed — project was still created; warn but don't abort
-            const msg = `Project saved, but engineering file upload failed: ${engErr.message}`;
-            console.warn("[Save] ⚠", msg);
-            setSaveError(msg);
-          }
+        if (!res.ok) {
+          const errMsg = (json as any).error ?? `Server error ${res.status}`;
+          console.error("[Save] ✗ POST /api/projects failed:", errMsg);
+          throw new Error(errMsg);
         }
 
+        const savedId: string = (json as any).project?.id;
+        console.log("[Save] ✓ Server responded 201 — project id:", savedId);
+
+        // ── Clear all pending file states ──────────────────────────────────────
+        clearThumbnailFile();
+        if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+        setVideoFile(null); setVideoLocalUrl(null);
+        if (videoInputRef.current) videoInputRef.current.value = "";
+        setModel3dFile(null); if (model3dInputRef.current) model3dInputRef.current.value = "";
+        setBomFile(null);    if (bomInputRef.current)    bomInputRef.current.value = "";
+
+        // ── Success toast + navigate ───────────────────────────────────────────
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
-        alert("Project Saved Successfully!");
+        toast({ title: "Project saved!", description: `"${finalForm.title || finalForm.titleAr}" was created successfully.` });
         navigate(`/admin/projects/${savedId}`);
 
-      } else if (projectId) {
-        // Engineering files go FIRST for EDIT — we update finalForm with returned URLs
-        // before the PATCH so the PATCH carries the correct model_3d_url / bom_url values.
-        if (model3dFile || bomFile) {
-          console.log("[Save] ▶ Sending engineering files before PATCH…");
-          try {
-            const { model3dUrl, bomUrl } = await sendEngineeringFiles(projectId);
-            finalForm = { ...finalForm, model3dUrl, bomUrl };
-          } catch (engErr: any) {
-            const msg = `Engineering file upload failed: ${engErr.message}`;
-            console.error("[Save] ✗", msg);
-            setSaveError(msg);
-            setModel3dUploading(false);
-            setBomUploading(false);
-            setIsBusy(false);
-            return;
-          }
+      } catch (err: any) {
+        const msg = err.message ?? "Save failed";
+        console.error("[Save] ✗ CREATE failed:", err);
+        setSaveError(msg);
+        toast({ title: "Save failed", description: msg, variant: "destructive" });
+      } finally {
+        setThumbnailUploading(false); setVideoUploading(false);
+        setModel3dUploading(false);   setBomUploading(false);
+        setIsBusy(false);
+      }
+      return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ── EDIT PATH — direct Cloudinary for thumbnail/video; separate engineering
+    //               endpoint for 3D model/BOM; PATCH with resolved URLs
+    // ═══════════════════════════════════════════════════════════════════════════
+    let editForm = { ...finalForm };
+
+    try {
+      // ── STEP B1 — Upload thumbnail directly to Cloudinary ────────────────────
+      if (thumbnailFile) {
+        console.log("[Save] ▶ Uploading thumbnail:", thumbnailFile.name);
+        setThumbnailUploading(true);
+        try {
+          const url = await uploadToCloudinary(thumbnailFile, "image", "infinity-tech", (pct) => setThumbnailUploadProgress(pct));
+          console.log("[Save] ✓ Thumbnail URL:", url);
+          editForm = { ...editForm, thumbnailUrl: url };
+          setField("thumbnailUrl", url);
+          clearThumbnailFile();
+        } catch (err: any) {
+          const msg = `Cloudinary Upload Failed: ${err.message ?? "Image upload error"}`;
+          console.error("[Save] ✗ Thumbnail upload failed:", err);
+          setThumbnailError(msg); setSaveError(msg); setThumbnailUploading(false); setIsBusy(false);
+          toast({ title: "Thumbnail upload failed", description: msg, variant: "destructive" });
+          return;
+        }
+        setThumbnailUploading(false);
+      }
+
+      // ── STEP B2 — Upload video directly to Cloudinary ───────────────────────
+      if (videoFile) {
+        console.log("[Save] ▶ Uploading video:", videoFile.name);
+        setVideoUploading(true); setVideoUploadProgress(0);
+        try {
+          const url = await uploadToCloudinary(videoFile, "video", "infinity-tech/videos", (pct) => setVideoUploadProgress(pct));
+          console.log("[Save] ✓ Video URL:", url);
+          editForm = { ...editForm, videoUrl: url };
+          setField("videoUrl", url);
+          if (videoLocalUrl) URL.revokeObjectURL(videoLocalUrl);
+          setVideoFile(null); setVideoLocalUrl(null);
+          if (videoInputRef.current) videoInputRef.current.value = "";
+          setVideoUploadProgress(100);
+        } catch (err: any) {
+          const msg = `Cloudinary Upload Failed: ${err.message ?? "Video upload error"}`;
+          console.error("[Save] ✗ Video upload failed:", err);
+          setVideoError(msg); setSaveError(msg); setVideoUploading(false); setIsBusy(false);
+          toast({ title: "Video upload failed", description: msg, variant: "destructive" });
+          return;
+        }
+        setVideoUploading(false);
+      }
+
+      // ── STEP B3/B4 — Engineering files through backend endpoint ─────────────
+      // Send model_3d / bom_file to /api/projects/:id/engineering-files BEFORE
+      // the PATCH so editForm carries the confirmed Cloudinary URLs into the DB write.
+      if ((model3dFile || bomFile) && projectId) {
+        const engFd = new FormData();
+        if (model3dFile) { engFd.append("model_3d", model3dFile, model3dFile.name); setModel3dUploading(true); setModel3dUploadProgress(0); }
+        if (bomFile)     { engFd.append("bom_file",  bomFile,    bomFile.name);     setBomUploading(true);     setBomUploadProgress(0); }
+
+        const engKeys: string[] = [];
+        for (const k of engFd.keys()) engKeys.push(k);
+        console.log("[Save] ▶ FormData keys before POST /engineering-files:", engKeys);
+
+        const engRes = await fetch(`/api/projects/${projectId}/engineering-files`, {
+          method: "POST",
+          headers: { "x-admin-pin": pin },
+          body: engFd,
+        });
+
+        if (!engRes.ok) {
+          const body = await engRes.json().catch(() => ({}));
+          const msg = (body as any).error ?? `Engineering upload failed (HTTP ${engRes.status})`;
+          console.error("[Save] ✗ Engineering-files endpoint error:", msg);
+          setModel3dUploading(false); setBomUploading(false); setIsBusy(false);
+          setSaveError(msg);
+          toast({ title: "Engineering file upload failed", description: msg, variant: "destructive" });
+          return;
         }
 
-        console.log("[Save] ▶ Calling updateProject — waiting for server 200…");
-        await updateProject(projectId, finalForm, commitMsg || undefined);
-        console.log("[Save] ✓ Server responded 200 — project id:", projectId);
-        setCommitMsg("");
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-        alert("Project Saved Successfully!");
+        const { project: row } = await engRes.json();
+        console.log("[Save] ✓ Engineering files saved:", { model_3d_url: row.model_3d_url ?? "(none)", bom_url: row.bom_url ?? "(none)" });
+
+        if (row.model_3d_url) { editForm = { ...editForm, model3dUrl: row.model_3d_url }; setField("model3dUrl", row.model_3d_url); setModel3dFile(null); if (model3dInputRef.current) model3dInputRef.current.value = ""; }
+        if (row.bom_url)      { editForm = { ...editForm, bomUrl: row.bom_url };           setField("bomUrl",     row.bom_url);     setBomFile(null);    if (bomInputRef.current)    bomInputRef.current.value = ""; }
+        setModel3dUploading(false); setBomUploading(false);
+        setModel3dUploadProgress(100); setBomUploadProgress(100);
       }
+
+      // ── STEP C — PATCH project with all resolved URLs ────────────────────────
+      console.log("[Save] ▶ Calling updateProject — waiting for server 200…", {
+        thumbnailUrl: editForm.thumbnailUrl || "(empty)",
+        videoUrl:     editForm.videoUrl     || "(empty)",
+        model3dUrl:   editForm.model3dUrl   || "(empty)",
+        bomUrl:       editForm.bomUrl       || "(empty)",
+      });
+
+      await updateProject(projectId!, editForm, commitMsg || undefined);
+      console.log("[Save] ✓ Server responded 200 — project id:", projectId);
+      setCommitMsg("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      toast({ title: "Project updated!", description: `"${editForm.title || editForm.titleAr}" saved successfully.` });
 
     } catch (err: any) {
       const msg = err.message ?? "Save failed";
-      console.error("[Save] ✗ Database write failed — full error:", err);
+      console.error("[Save] ✗ EDIT failed — full error:", err);
       setSaveError(msg);
-      alert(`Save Failed: ${msg}`);
+      toast({ title: "Save failed", description: msg, variant: "destructive" });
     } finally {
       setIsBusy(false);
     }
