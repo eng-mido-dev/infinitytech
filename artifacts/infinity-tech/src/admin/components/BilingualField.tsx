@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Languages, Loader2, Check, AlertCircle, RefreshCw, Wand2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { Languages, Loader2, Check, AlertCircle, Wand2, Sparkles } from "lucide-react";
 import { useTranslation, detectLang } from "@/admin/hooks/useTranslation";
 
 interface BilingualFieldProps {
@@ -21,6 +21,17 @@ const inputBase =
 type TranslateDir = "en→ar" | "ar→en";
 type TranslateState = "idle" | "loading" | "done" | "error";
 
+// Provider display name
+function providerLabel(p: string): string {
+  if (p === "opus-mt")    return "Helsinki AI ✦";
+  if (p === "mistral-7b") return "Mistral-7B ✦";
+  if (p === "cache")      return "cached";
+  if (p === "google")     return "Google Translate";
+  if (p === "deepl")      return "DeepL";
+  if (p === "mymemory")   return "MyMemory";
+  return p;
+}
+
 export default function BilingualField({
   label,
   sub,
@@ -40,7 +51,6 @@ export default function BilingualField({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autoMode, setAutoMode] = useState(true);
 
-  // Auto-translate: fires 1.2 s after user stops typing in EITHER field
   function scheduleTranslate(text: string, from: "en" | "ar", to: "en" | "ar") {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doTranslate(text, from, to), 1200);
@@ -57,7 +67,7 @@ export default function BilingualField({
       else onEnChange(result.translatedText);
       setProvider(result.cached ? "cache" : result.provider);
       setState("done");
-      setTimeout(() => setState("idle"), 2500);
+      setTimeout(() => setState("idle"), 3000);
     } else {
       setState("error");
     }
@@ -73,9 +83,18 @@ export default function BilingualField({
     if (autoMode && v.trim().length > 3) scheduleTranslate(v, "ar", "en");
   }
 
-  const isLoading = state === "loading";
-  const isDone = state === "done";
-  const isError = state === "error";
+  // "✨ Professional Translate" — AR → EN using Mistral-7B
+  async function handleProfessionalTranslate() {
+    const src = arValue.trim() || enValue.trim();
+    if (!src) return;
+    const from = arValue.trim() ? "ar" : "en";
+    const to   = from === "ar" ? "en" : "ar";
+    await doTranslate(src, from, to);
+  }
+
+  const isLoading  = state === "loading";
+  const isDone     = state === "done";
+  const isError    = state === "error";
   const targetSide = lastDir === "en→ar" ? "ar" : "en";
 
   const statusBadge = (
@@ -83,20 +102,20 @@ export default function BilingualField({
       {isLoading && (
         <span className="flex items-center gap-1 text-xs text-primary">
           <Loader2 className="w-3 h-3 animate-spin" />
-          Translating…
+          Thinking…
         </span>
       )}
       {isDone && (
         <span className="flex items-center gap-1 text-xs text-emerald-400">
           <Check className="w-3 h-3" />
-          Translated {provider === "cache" ? "(from cache)" : provider ? `via ${provider}` : ""}
+          Translated {provider ? `via ${providerLabel(provider)}` : ""}
         </span>
       )}
       {isError && error && (
         <span className="flex items-center gap-1 text-xs text-red-400">
           <AlertCircle className="w-3 h-3" />
           {error}
-          <button onClick={() => { clearError(); setState("idle"); }} className="underline">dismiss</button>
+          <button onClick={() => { clearError(); setState("idle"); }} className="underline ml-1">dismiss</button>
         </span>
       )}
     </div>
@@ -104,16 +123,36 @@ export default function BilingualField({
 
   return (
     <div className="space-y-2">
-      {/* Header row */}
+      {/* ── Header row ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</label>
           {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {statusBadge}
+
+          {/* ✨ Professional Translate — prominent AI button */}
+          <button
+            type="button"
+            onClick={handleProfessionalTranslate}
+            disabled={isLoading || (!arValue.trim() && !enValue.trim())}
+            title="Use Mistral-7B to translate with technical engineering context"
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-all
+              ${isLoading
+                ? "bg-primary/10 border-primary/30 text-primary cursor-wait"
+                : "bg-gradient-to-r from-primary/15 to-chart-2/15 border-primary/30 text-primary hover:from-primary/25 hover:to-chart-2/25 hover:border-primary/50 active:scale-95"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            {isLoading
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> Thinking…</>
+              : <><Sparkles className="w-3 h-3" /> Professional Translate</>
+            }
+          </button>
+
           {/* Auto-translate toggle */}
           <button
+            type="button"
             onClick={() => setAutoMode(m => !m)}
             title={autoMode ? "Auto-translate ON — click to disable" : "Auto-translate OFF — click to enable"}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
@@ -125,10 +164,12 @@ export default function BilingualField({
             <Wand2 className="w-3 h-3" />
             {autoMode ? "Auto" : "Manual"}
           </button>
-          {/* Manual translate buttons */}
+
+          {/* Manual translate arrows (shown only in manual mode) */}
           {!autoMode && (
             <>
               <button
+                type="button"
                 onClick={() => enValue.trim() && doTranslate(enValue, "en", "ar")}
                 disabled={isLoading || !enValue.trim()}
                 className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted/30 border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -138,6 +179,7 @@ export default function BilingualField({
                 EN → AR
               </button>
               <button
+                type="button"
                 onClick={() => arValue.trim() && doTranslate(arValue, "ar", "en")}
                 disabled={isLoading || !arValue.trim()}
                 className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted/30 border border-border text-muted-foreground hover:text-primary hover:border-primary/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
@@ -151,7 +193,7 @@ export default function BilingualField({
         </div>
       </div>
 
-      {/* Input grid */}
+      {/* ── Input grid ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* English side */}
         <div className="relative">
@@ -175,8 +217,13 @@ export default function BilingualField({
                 dir="ltr"
               />
             )}
-            {isLoading && targetSide === "ar" && (
-              <Loader2 className="absolute right-2 top-2.5 w-3.5 h-3.5 text-primary animate-spin" />
+            {isLoading && targetSide === "en" && (
+              <div className="absolute inset-0 rounded-lg bg-primary/5 border border-primary/20 pointer-events-none flex items-center justify-center">
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Thinking…
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -207,12 +254,9 @@ export default function BilingualField({
               <div className="absolute inset-0 rounded-lg bg-primary/5 border border-primary/20 pointer-events-none flex items-center justify-center">
                 <div className="flex items-center gap-1.5 text-xs text-primary">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Translating…
+                  Thinking…
                 </div>
               </div>
-            )}
-            {isLoading && targetSide === "en" && (
-              <div className="absolute inset-0 rounded-lg bg-primary/5 border border-primary/20 pointer-events-none" />
             )}
           </div>
         </div>
