@@ -11,11 +11,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
-- **Database (projects/contacts)**: Supabase (PostgreSQL) — `@supabase/supabase-js`
-- **Database (analytics/comments/notifications)**: PostgreSQL + Drizzle ORM (Replit-managed)
-- **Media storage**: Local disk via Multer — POST `/api/upload` saves to `artifacts/api-server/public/uploads/`, served at `/uploads/` (proxied through Vite in dev)
+- **Database**: Replit-managed PostgreSQL via Drizzle ORM (`@workspace/db`)
+- **Media storage**: Cloudinary (signed uploads via `/api/projects/upload-signature`)
 - **Validation**: Zod, `drizzle-zod`
-- **Build**: esbuild (CJS bundle)
+- **Build**: esbuild (ESM bundle for API server)
 
 ## Structure
 
@@ -23,16 +22,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server (port 8080)
-│   ├── infinity-tech/      # Portfolio frontend (port assigned by Replit)
-│   ├── admin-dashboard/    # Admin frontend (port assigned by Replit)
-│   └── mockup-sandbox/     # Canvas component previews
+│   └── infinity-tech/      # Portfolio frontend + embedded admin panel (port 21976)
 ├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas
 │   └── db/                 # Drizzle ORM schema + DB connection (Replit Postgres)
 ├── scripts/                # Utility scripts
-├── supabase_schema.sql     # One-time SQL run in Supabase to create tables
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 └── package.json
@@ -40,102 +36,104 @@ artifacts-monorepo/
 
 ## Database
 
-> **Supabase has been disabled.** All data (projects, contact messages) is now stored in the Replit-managed PostgreSQL database via Drizzle ORM. The `@workspace/db` package contains the full schema. Run `pnpm --filter @workspace/db run push` to apply schema changes.
+All data (projects, contact messages, analytics) is stored in the Replit-managed PostgreSQL database via Drizzle ORM.
 
-## Supabase Setup (DISABLED)
+- Run `pnpm --filter @workspace/db run push` to apply schema changes.
+- Schema lives in `lib/db/src/schema/`.
+- Env vars set automatically: `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`.
 
-- **Project ref**: `kbqhoyipoxmyhtbuhlkd`
-- **Host**: `db.kbqhoyipoxmyhtbuhlkd.supabase.co`
-- **Tables**: `projects`, `contact_messages`
-- **Columns (projects)**: `id, title_en, title_ar, description_en, description_ar, overview_en, overview_ar, problem_en, problem_ar, solution_en, solution_ar, thumbnail_url, video_url, assets_zip_url, tags, status, github_url, live_link, category, language, code_snippet, timeline, files, media, updates, created_at, updated_at`
-- **RLS**: Public SELECT on `projects`; service_role only for writes; service_role only for `contact_messages`
-- **Schema creation**: Done via Supabase Management API (PAT in `SUPABASE_ACCESS_TOKEN`)
-- **Admin writes**: Go through `api-server` using `SUPABASE_SERVICE_ROLE_KEY`
-- **Frontend reads**: Direct Supabase client using `VITE_SUPABASE_ANON_KEY`
-- **Direct psql (port 5432/6543)**: BLOCKED by Replit's network firewall — always use REST API or `@supabase/supabase-js`
-- **Connection string** (for external tools only): `postgresql://postgres:[SUPABASE_DB_PASSWORD]@db.kbqhoyipoxmyhtbuhlkd.supabase.co:5432/postgres`
-- **Agent skills**: `supabase/agent-skills` installed via `npx skills add supabase/agent-skills`
+### Schema: projects table
+
+Columns: `id, title_en, title_ar, description_en, description_ar, overview_en, overview_ar, thumbnail_url, video_url, assets_zip_url, tags, status, github_url, live_link, category, language, custom_sections (jsonb), timeline (jsonb), files (jsonb), media (jsonb), updates (jsonb), created_at, updated_at`
+
+> Note: Legacy columns `problem_en`, `problem_ar`, `solution_en`, `solution_ar`, `code_snippet` remain in the DB schema but are no longer used in the admin UI.
 
 ## Required Secrets
 
 | Secret | Used By |
 |---|---|
-| `SUPABASE_URL` | api-server |
-| `SUPABASE_SERVICE_ROLE_KEY` | api-server |
-| `SUPABASE_ANON_KEY` | api-server |
-| `VITE_SUPABASE_URL` | frontend (infinity-tech, admin-dashboard) |
-| `VITE_SUPABASE_ANON_KEY` | frontend |
+| `DATABASE_URL` | api-server, db package (auto-set by Replit) |
+| `ADMIN_PIN` | api-server (default: `admin2024`) |
 | `CLOUDINARY_CLOUD_NAME` | api-server |
 | `CLOUDINARY_API_KEY` | api-server |
 | `CLOUDINARY_API_SECRET` | api-server |
-| `VITE_CLOUDINARY_CLOUD_NAME` | frontend |
-| `SUPABASE_DB_PASSWORD` | setup script (schema migration) |
-| `SUPABASE_ACCESS_TOKEN` | setup script (Management API) |
-| `ADMIN_PIN` | api-server (default: `admin2024`) |
+| `VITE_CLOUDINARY_CLOUD_NAME` | frontend (infinity-tech) |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL` | api-server (auto-provisioned) |
+| `AI_INTEGRATIONS_OPENAI_API_KEY` | api-server (auto-provisioned) |
 
 ## Artifacts
 
-### `artifacts/infinity-tech` — Portfolio Website (`/`)
+### `artifacts/infinity-tech` — Portfolio Website + Admin Panel (`/`)
 
-- **Pages**: Home, Projects, Project Detail, About, Contact
-- **Admin Panel**: PIN-protected at `/admin`
-- **Data**: Reads from Supabase directly (anon key, public RLS)
+- **Public pages**: Home, Projects, Project Detail, About, Contact
+- **Admin panel**: Embedded at `/admin`, PIN-protected (`it-admin-pin` in localStorage, default `admin2024`)
+- **Admin features**:
+  - Projects list with 16:9 thumbnails (object-fit: cover)
+  - Full project editor: bilingual title/description/overview, tags, status, GitHub URL, thumbnail upload
+  - Dynamic custom sections (user-defined, bilingual title + content, add/remove)
+  - Glassmorphic custom dropdowns (dark bg, cyan borders) for Status / Code Language / File Type
+  - Files, Media, Updates, History tabs
+  - Full CRUD via API (POST/PATCH/DELETE `/api/projects`)
 - **API proxy**: Vite dev server proxies `/api` → `http://localhost:8080`
-- **Contact form**: Posts to `/api/contact` → stored in `contact_messages`
+- **Contact form**: Posts to `/api/contact`
 - **Analytics**: Fire-and-forget events to `/api/analytics/event`
-- **Comments**: Per-project at `/api/comments/:id`
-
-### `artifacts/admin-dashboard` — Admin Dashboard (`/admin-dashboard`)
-
-- **Auth**: PIN-protected via `x-admin-pin` header (`localStorage` key `it-admin-pin`)
-- **Projects CRUD**: Via API server (POST/PATCH/DELETE `/api/projects`)
-- **Reads**: Direct from Supabase (anon key) — bypasses API server for listing
-- **Cloudinary uploads**: Signed via `/api/projects/upload-signature`, then direct browser → Cloudinary
-- **API proxy**: Vite dev server proxies `/api` → `http://localhost:8080`
 
 ### `artifacts/api-server` — Express API (port 8080)
 
 Routes:
-- `GET/POST /api/projects` — project CRUD (POST/PATCH/DELETE require `x-admin-pin`)
-- `PATCH/DELETE /api/projects/:id`
-- `POST /api/projects/upload-signature` — Cloudinary signed upload
-- `POST /api/contact` — stores contact form in Supabase `contact_messages`
-- `POST /api/analytics/event` — stores events in Replit Postgres
+- `GET /api/projects` — public project listing
+- `GET /api/projects/:id` — public single project + analytics stats
+- `POST /api/projects` — create project (requires `x-admin-pin` header)
+- `PUT /api/projects/:id` — full replace (requires `x-admin-pin`)
+- `PATCH /api/projects/:id` — partial update (requires `x-admin-pin`)
+- `DELETE /api/projects/:id` — delete (requires `x-admin-pin`)
+- `POST /api/projects/upload-signature` — Cloudinary signed upload URL
+- `POST /api/projects/:id/translate` — auto-translate bilingual fields via OpenAI
+- `POST /api/contact` — contact form submission
+- `POST /api/analytics/event` — analytics event ingestion
 - `GET /api/analytics/summary` — aggregated stats
 - `GET/POST/PATCH/DELETE /api/comments/:projectId`
 - `GET/PATCH /api/notifications`
-- `POST /api/setup/schema` — one-time schema bootstrap (admin-protected)
+- `GET/POST/DELETE /api/push/*` — Web Push subscriptions
 - `GET /api/healthz`
-- `GET /api/push/vapid-public-key` — returns VAPID public key for browser subscription
-- `POST /api/push/subscribe` — save/upsert a browser PushSubscription (admin-protected)
-- `DELETE /api/push/subscribe` — remove a subscription by endpoint (admin-protected)
-- `POST /api/push/test` — broadcast a test push to all subscriptions (admin-protected)
 
 Security:
 - **Helmet** — secure HTTP headers
 - **CORS** — restricted to `*.replit.app`, `*.replit.dev`, `localhost`
 - **Rate limiting** — 200 req/15 min global; 30 writes/min on projects
-- **Input sanitization** — allowlist of writable fields on PATCH `/api/projects`
+- **Input sanitization** — allowlist of writable fields on project writes
 - **Body size limit** — 1 MB
+
+## Admin Auth Flow
+
+- Admin PIN stored in `localStorage` under key `it-admin-pin` (default: `admin2024`)
+- All admin API calls send `x-admin-pin: <pin>` header
+- API server validates against `process.env.ADMIN_PIN || "admin2024"`
+
+## Admin Data Layer
+
+- **Store**: `artifacts/infinity-tech/src/admin/data/store.ts`
+  - `dbToAdmin()` maps snake_case DB rows → camelCase `AdminProject`
+  - `adminToDb()` maps camelCase `AdminProject` → snake_case API payload
+  - `useStore()` hook exposes: `projects, loading, saving, error, createProject, updateProject, deleteProject, addUpdate, removeUpdate, addFile, removeFile, addMedia, removeMedia, resetToDefaults`
+- **Types**: `artifacts/infinity-tech/src/admin/data/types.ts`
+  - `AdminProject`, `CustomSection`, `ProjectFile`, `ProjectMedia`, `ProjectUpdate`, `Commit`
+- **Initial data**: `artifacts/infinity-tech/src/admin/data/initialProjects.ts` (used only if DB is empty)
 
 ## Translation System
 
 **File**: `artifacts/api-server/src/lib/translate.ts`
 
-Two-layer pipeline used on every `POST /api/projects` and `PATCH /api/projects/:id` write when only one language is provided:
+Two-layer pipeline on every project write when only one language is provided:
 
 | Layer | Tool | Notes |
 |---|---|---|
-| Layer 1 | OpenAI `gpt-5-mini` | Context-aware, engineering-domain system prompt; acronyms (PCB, RTOS, I2C …) kept in Latin script |
+| Layer 1 | OpenAI `gpt-4o-mini` | Engineering-domain system prompt; acronyms (PCB, RTOS, I2C) kept in Latin |
 | Fallback | MyMemory MT | Used only when OpenAI call fails |
 | Fallback layer 2 | Engineering dictionary | 60+ term overrides applied on top of MyMemory output only |
 | Cache | In-process LRU (2 000 entries) | Keyed by `{lang}→{lang}:{text}`; cleared between server restarts |
 
-**Manual override**: If both `title_en` and `title_ar` (or any `*_en`/`*_ar` pair) are supplied in the request body, the pipeline is skipped entirely for that field — the provided values are saved verbatim.
-
-**Env vars** (auto-provisioned by Replit AI Integrations — no user action needed):
-- `AI_INTEGRATIONS_OPENAI_BASE_URL`
-- `AI_INTEGRATIONS_OPENAI_API_KEY`
+If both `*_en` and `*_ar` are supplied, translation is skipped for that field.
 
 ## TypeScript & Composite Projects
 
@@ -149,7 +147,3 @@ Every package extends `tsconfig.base.json` (`composite: true`). Build order:
 |---|---|---|
 | API Server | `PORT=8080 pnpm --filter @workspace/api-server run dev` | 8080 |
 | Start application | `PORT=21976 BASE_PATH=/ pnpm --filter @workspace/infinity-tech run dev` | 21976 |
-| artifacts/admin-dashboard | `pnpm --filter @workspace/admin-dashboard run dev` | 22133 |
-| artifacts/infinity-tech | `pnpm --filter @workspace/infinity-tech run dev` | 21976 |
-
-Note: `artifacts/api-server` and `Start application` conflict with the primary workflows — they are expected to fail.

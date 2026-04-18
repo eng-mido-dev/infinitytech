@@ -211,8 +211,8 @@ export function ProjectDetail() {
           description: project.description,
           tags: project.tags,
           status: project.status,
-          createdAt: project.createdAt,
-          updatedAt: project.updatedAt,
+          createdAt: (project as unknown as { createdAt?: string }).createdAt,
+          updatedAt: (project as unknown as { updatedAt?: string }).updatedAt,
           githubUrl: project.githubUrl,
         })}
       />

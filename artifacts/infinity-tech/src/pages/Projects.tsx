@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import {
@@ -70,7 +70,7 @@ const CATEGORY_LABEL: Record<string, { en: string; ar: string }> = {
   simatic: { en: "Simatic",    ar: "Simatic"      },
 };
 
-const CATEGORY_ICON: Record<string, () => JSX.Element> = {
+const CATEGORY_ICON: Record<string, () => React.JSX.Element> = {
   gripper: IconGripper,
   "3d":    Icon3D,
   simatic: IconSimatic,
@@ -95,7 +95,7 @@ const TECH_MAP: Record<string, { bg: string; text: string; label: string }> = {
   arduino:    { bg: "bg-teal-500/15",   text: "text-teal-400",   label: "Arduino"  },
 };
 
-const FILTERS: { key: FilterKey; en: string; ar: string; Icon: () => JSX.Element }[] = [
+const FILTERS: { key: FilterKey; en: string; ar: string; Icon: () => React.JSX.Element }[] = [
   { key: "all",     en: "All",        ar: "الكل",         Icon: IconAll     },
   { key: "gripper", en: "Gripper",    ar: "Gripper",      Icon: IconGripper },
   { key: "3d",      en: "3D Design",  ar: "تصميم ثلاثي",  Icon: Icon3D      },
@@ -352,7 +352,7 @@ const gridVariants = {
 };
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } },
 };
 
 export function Projects() {

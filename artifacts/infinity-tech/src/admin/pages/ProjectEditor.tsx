@@ -1,18 +1,20 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useStore } from "@/admin/data/store";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
-  AdminProject, ProjectStatus, FileType, UpdateType, ProjectFile, ProjectUpdate
+  AdminProject, ProjectStatus, FileType, UpdateType, ProjectFile, ProjectUpdate, CustomSection,
 } from "@/admin/data/types";
 import {
-  ArrowLeft, Save, Plus, Trash2, Upload, FileText, Image, Video,
-  Code2, GitCommit, Calendar, Tag, Globe, Lock, ChevronDown, X,
-  Link2, CheckCircle2, AlertCircle, FolderArchive, FileCode,
-  Cpu, Box, Film, Eye, EyeOff, ImagePlus, Loader2, ExternalLink,
+  ArrowLeft, Save, Plus, Trash2, Upload, FileText, Image,
+  GitCommit, Calendar, Lock, X,
+  CheckCircle2, AlertCircle, FolderArchive, FileCode,
+  Box, Film, ImagePlus, Loader2, ExternalLink, Layers,
+  GripVertical, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Link } from "wouter";
 import BilingualField from "@/admin/components/BilingualField";
+import CustomSelect from "@/admin/components/CustomSelect";
 
 const COMMIT_TYPE_COLOR: Record<string, string> = {
   create: "bg-chart-4 text-white",
@@ -42,19 +44,34 @@ const UPDATE_TYPE_COLOR: Record<UpdateType, string> = {
   note: "bg-muted text-muted-foreground border-border",
 };
 
-const STATUS_OPTIONS: ProjectStatus[] = ["active", "completed", "archived"];
+const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
+  { value: "active",    label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "archived",  label: "Archived" },
+];
 const UPDATE_TYPES: UpdateType[] = ["release", "feature", "fix", "design", "test", "note"];
-const LANG_OPTIONS = ["c", "cpp", "python", "typescript", "rust", "vhdl", "assembly", "other"];
+const LANG_OPTIONS: { value: string; label: string }[] = [
+  { value: "c",          label: "C" },
+  { value: "cpp",        label: "C++" },
+  { value: "python",     label: "Python" },
+  { value: "typescript", label: "TypeScript" },
+  { value: "rust",       label: "Rust" },
+  { value: "vhdl",       label: "VHDL" },
+  { value: "assembly",   label: "Assembly" },
+  { value: "other",      label: "Other" },
+];
 
-const EMPTY_PROJECT: Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "commits" | "views" | "downloads"> = {
+type FormData = Omit<AdminProject, "id" | "createdAt" | "updatedAt" | "commits" | "views" | "downloads">;
+
+const EMPTY_PROJECT: FormData = {
   title: "", titleAr: "",
   description: "", descriptionAr: "",
   overview: "", overviewAr: "",
-  problem: "", problemAr: "",
-  solution: "", solutionAr: "",
   tags: [], status: "active",
-  codeSnippet: "", language: "c", githubUrl: "",
-  liveUrl: "", category: "", thumbnailUrl: "" as string,
+  language: "c", githubUrl: "",
+  liveUrl: "", category: "",
+  thumbnailUrl: "",
+  customSections: [],
   timeline: [], files: [], media: [], updates: [],
 };
 
@@ -65,12 +82,16 @@ interface ProjectEditorProps {
 
 type Tab = "content" | "files" | "media" | "updates" | "history";
 
-function TabButton({ label, active, onClick, badge }: { label: string; active: boolean; onClick: () => void; badge?: number }) {
+function TabButton({ label, active, onClick, badge }: {
+  label: string; active: boolean; onClick: () => void; badge?: number;
+}) {
   return (
     <button
       onClick={onClick}
       className={`relative px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
-        active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+        active
+          ? "border-primary text-primary"
+          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
       }`}
     >
       {label}
@@ -94,26 +115,142 @@ function Field({ label, children, sub }: { label: string; children: React.ReactN
 const inputCls = "w-full bg-muted/30 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all";
 const textareaCls = `${inputCls} resize-none`;
 
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function SectionCard({
+  section,
+  onUpdate,
+  onRemove,
+}: {
+  section: CustomSection;
+  onUpdate: (s: CustomSection) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className="border border-border rounded-xl overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.02)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
+        <GripVertical className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+        <input
+          className="flex-1 bg-transparent border-none outline-none text-sm font-semibold text-foreground placeholder:text-muted-foreground/40"
+          value={section.titleEn}
+          onChange={e => onUpdate({ ...section, titleEn: e.target.value })}
+          placeholder="Section title (e.g. Technical Details)"
+        />
+        <input
+          className="flex-1 bg-transparent border-none outline-none text-sm font-semibold text-foreground placeholder:text-muted-foreground/40 text-right"
+          value={section.titleAr}
+          onChange={e => onUpdate({ ...section, titleAr: e.target.value })}
+          placeholder="عنوان القسم"
+          dir="rtl"
+        />
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
+          >
+            {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1.5">Content (EN)</p>
+                <textarea
+                  className={textareaCls}
+                  rows={5}
+                  value={section.contentEn}
+                  onChange={e => onUpdate({ ...section, contentEn: e.target.value })}
+                  placeholder="Write section content in English…"
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-1.5 text-right">المحتوى (AR)</p>
+                <textarea
+                  className={`${textareaCls} text-right`}
+                  rows={5}
+                  value={section.contentAr}
+                  onChange={e => onUpdate({ ...section, contentAr: e.target.value })}
+                  placeholder="اكتب محتوى القسم بالعربية…"
+                  dir="rtl"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
   const [, navigate] = useLocation();
-  const { getProject, createProject, updateProject, addFile, removeFile, addMedia, removeMedia, addUpdate, removeUpdate, saving, error: storeError } = useStore();
+  const {
+    getProject, createProject, updateProject,
+    addFile, removeFile, addMedia, removeMedia,
+    addUpdate, removeUpdate, saving, error: storeError,
+  } = useStore();
 
   const existing = projectId ? getProject(projectId) : null;
-  const [form, setForm] = useState<typeof EMPTY_PROJECT>(existing ?? EMPTY_PROJECT);
+
+  function toFormData(p: AdminProject): FormData {
+    return {
+      title: p.title, titleAr: p.titleAr,
+      description: p.description, descriptionAr: p.descriptionAr,
+      overview: p.overview, overviewAr: p.overviewAr,
+      tags: p.tags, status: p.status,
+      language: p.language, githubUrl: p.githubUrl,
+      liveUrl: p.liveUrl ?? "", category: p.category ?? "",
+      thumbnailUrl: p.thumbnailUrl ?? "",
+      customSections: p.customSections ?? [],
+      timeline: p.timeline, files: p.files, media: p.media, updates: p.updates,
+    };
+  }
+
+  const [form, setForm] = useState<FormData>(existing ? toFormData(existing) : EMPTY_PROJECT);
   const [tab, setTab] = useState<Tab>("content");
   const [tagInput, setTagInput] = useState("");
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
 
-  // Thumbnail image upload state
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  // File/media upload state
   const [addFileOpen, setAddFileOpen] = useState(false);
   const [fileForm, setFileForm] = useState<Omit<ProjectFile, "id" | "uploadedAt">>({
     name: "", type: "gerbers", description: "", size: "",
@@ -131,9 +268,9 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     type: "feature", adminOnly: false,
   });
 
-  const project = projectId ? getProject(projectId) : null;
+  const currentProject = projectId ? getProject(projectId) : null;
 
-  function setField<K extends keyof typeof EMPTY_PROJECT>(key: K, val: typeof EMPTY_PROJECT[K]) {
+  function setField<K extends keyof FormData>(key: K, val: FormData[K]) {
     setForm(f => ({ ...f, [key]: val }));
   }
 
@@ -183,8 +320,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
         setField("thumbnailUrl", url);
         clearThumbnailFile();
       } catch (err: any) {
-        const msg = err.message ?? "Image upload failed";
-        setThumbnailError(msg);
+        setThumbnailError(err.message ?? "Image upload failed");
         setThumbnailUploading(false);
         return;
       }
@@ -247,15 +383,34 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     if (!projectId || !updateForm.title) return;
     await addUpdate(projectId, updateForm);
     setAddUpdateOpen(false);
-    setUpdateForm({ date: new Date().toISOString().split("T")[0], version: "", title: "", titleAr: "", desc: "", descAr: "", type: "feature", adminOnly: false });
+    setUpdateForm({
+      date: new Date().toISOString().split("T")[0],
+      version: "", title: "", titleAr: "", desc: "", descAr: "",
+      type: "feature", adminOnly: false,
+    });
   }
 
-  const currentProject = projectId ? getProject(projectId) : null;
+  function addSection() {
+    const newSection: CustomSection = {
+      id: genId(), titleEn: "", titleAr: "", contentEn: "", contentAr: "",
+    };
+    setField("customSections", [...form.customSections, newSection]);
+  }
+
+  function updateSection(id: string, updated: CustomSection) {
+    setField("customSections", form.customSections.map(s => s.id === id ? updated : s));
+  }
+
+  function removeSection(id: string) {
+    setField("customSections", form.customSections.filter(s => s.id !== id));
+  }
 
   return (
     <div className="min-h-screen">
-      {/* Top bar */}
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b border-border px-6 py-3 flex items-center gap-4">
+      {/* ── Top bar ── */}
+      <div className="sticky top-0 z-10 border-b border-border px-6 py-3 flex items-center gap-4"
+        style={{ background: "rgba(10,16,25,0.92)", backdropFilter: "blur(16px)" }}
+      >
         <Link href="/admin/projects">
           <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm transition-colors">
             <ArrowLeft className="w-4 h-4" />
@@ -272,7 +427,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
             value={commitMsg}
             onChange={e => setCommitMsg(e.target.value)}
             placeholder="Commit message (optional)"
-            className="text-xs bg-muted border border-border rounded-md px-3 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 w-56 font-mono"
+            className="text-xs bg-muted/40 border border-border rounded-md px-3 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 w-52 font-mono"
           />
         )}
 
@@ -280,9 +435,11 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
           onClick={handleSave}
           disabled={saving}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-            saved ? "bg-chart-4 text-white" :
-            saveError ? "bg-red-500/80 text-white" :
-            "bg-primary hover:bg-primary/90 text-primary-foreground hover:shadow-md hover:shadow-primary/20"
+            saved
+              ? "bg-emerald-500 text-white"
+              : saveError
+              ? "bg-red-500/80 text-white"
+              : "bg-primary hover:bg-primary/90 text-primary-foreground hover:shadow-lg hover:shadow-primary/25"
           }`}
         >
           {saving
@@ -295,28 +452,34 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
           }
         </button>
       </div>
+
       {saveError && (
-        <div className="px-6 pt-2">
-          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</p>
+        <div className="px-6 pt-3">
+          <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {saveError}
+          </p>
         </div>
       )}
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div className="border-b border-border px-6 flex gap-0 overflow-x-auto scrollbar-none">
-        <TabButton label="Content" active={tab === "content"} onClick={() => setTab("content")} />
-        <TabButton label="Files" active={tab === "files"} onClick={() => setTab("files")} badge={currentProject?.files.length} />
-        <TabButton label="Media" active={tab === "media"} onClick={() => setTab("media")} badge={currentProject?.media.length} />
-        <TabButton label="Updates" active={tab === "updates"} onClick={() => setTab("updates")} badge={currentProject?.updates.length} />
-        {mode === "edit" && <TabButton label="History" active={tab === "history"} onClick={() => setTab("history")} badge={currentProject?.commits.length} />}
+        <TabButton label="Content"  active={tab === "content"}  onClick={() => setTab("content")} />
+        <TabButton label="Files"    active={tab === "files"}    onClick={() => setTab("files")}   badge={currentProject?.files.length} />
+        <TabButton label="Media"    active={tab === "media"}    onClick={() => setTab("media")}   badge={currentProject?.media.length} />
+        <TabButton label="Updates"  active={tab === "updates"}  onClick={() => setTab("updates")} badge={currentProject?.updates.length} />
+        {mode === "edit" && (
+          <TabButton label="History" active={tab === "history"} onClick={() => setTab("history")} badge={currentProject?.commits.length} />
+        )}
       </div>
 
-      {/* Tab content */}
+      {/* ── Tab content ── */}
       <div className="p-6 max-w-4xl mx-auto">
         <AnimatePresence mode="wait">
 
           {/* ── CONTENT TAB ── */}
           {tab === "content" && (
-            <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+            <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-7">
+
               <BilingualField
                 label="Title"
                 enValue={form.title}
@@ -333,43 +496,52 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 arValue={form.descriptionAr}
                 onEnChange={v => setField("description", v)}
                 onArChange={v => setField("descriptionAr", v)}
-                multiline
-                rows={3}
+                multiline rows={3}
                 enPlaceholder="Brief project description…"
                 arPlaceholder="وصف مختصر للمشروع…"
               />
 
-              {/* Cover Image Upload */}
+              {/* ── Cover Image ── */}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                   Cover Image
                 </label>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Upload an image directly, or paste a URL below. Uploads are saved to the server.
+                  Upload an image or paste a URL. Displayed at 16:9 ratio without distortion.
                 </p>
 
-                {/* Preview area */}
-                <div className="relative mb-3 rounded-xl overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
-                  style={{ height: "180px" }}>
+                {/* 16:9 preview */}
+                <div
+                  className="relative w-full rounded-xl overflow-hidden border border-border bg-muted/20 flex items-center justify-center mb-3"
+                  style={{ aspectRatio: "16 / 9" }}
+                >
                   {(thumbnailPreview || form.thumbnailUrl) ? (
                     <>
                       <img
                         src={thumbnailPreview || form.thumbnailUrl || ""}
                         alt="Thumbnail preview"
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full"
+                        style={{ objectFit: "cover" }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                       {thumbnailPreview && (
-                        <div className="absolute bottom-2 left-2">
-                          <span className="text-[10px] font-mono font-bold text-white/80 bg-black/50 px-2 py-0.5 rounded">
+                        <div className="absolute bottom-3 left-3">
+                          <span className="text-[10px] font-mono font-bold text-white bg-amber-500/80 px-2 py-0.5 rounded">
                             PENDING UPLOAD
+                          </span>
+                        </div>
+                      )}
+                      {form.thumbnailUrl && !thumbnailPreview && (
+                        <div className="absolute bottom-3 left-3">
+                          <span className="text-[10px] font-mono text-white/60 bg-black/50 px-2 py-0.5 rounded">
+                            16:9 · object-fit: cover
                           </span>
                         </div>
                       )}
                       <button
                         type="button"
                         onClick={thumbnailPreview ? clearThumbnailFile : () => setField("thumbnailUrl", "")}
-                        className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-500/80 transition-colors"
+                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-500/80 transition-colors"
                         title="Remove image"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -379,22 +551,21 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                           href={form.thumbnailUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="absolute top-2 left-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary/80 transition-colors"
-                          title="Open image"
+                          className="absolute top-3 left-3 w-7 h-7 flex items-center justify-center rounded-full bg-black/70 text-white hover:bg-primary/80 transition-colors"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       )}
                     </>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground/50 select-none pointer-events-none">
-                      <ImagePlus className="w-10 h-10" />
-                      <span className="text-xs">No image selected</span>
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground/40 select-none pointer-events-none">
+                      <ImagePlus className="w-12 h-12" />
+                      <span className="text-xs">No image — 16:9 preview</span>
                     </div>
                   )}
                 </div>
 
-                {/* Upload button row */}
+                {/* Upload button */}
                 <div className="flex gap-2 mb-3">
                   <button
                     type="button"
@@ -402,11 +573,10 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                     disabled={thumbnailUploading}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-60"
                   >
-                    {thumbnailUploading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
-                    ) : (
-                      <><Upload className="w-4 h-4" /> Choose Image</>
-                    )}
+                    {thumbnailUploading
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                      : <><Upload className="w-4 h-4" /> Choose Image</>
+                    }
                   </button>
                   {thumbnailFile && (
                     <div className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded-lg bg-muted/30 border border-border">
@@ -430,63 +600,49 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 </div>
 
                 {thumbnailError && (
-                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">
-                    {thumbnailError}
+                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {thumbnailError}
                   </p>
                 )}
 
-                {/* URL fallback */}
                 <div>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                    Or paste a URL
-                  </p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Or paste a URL</p>
                   <input
                     className={inputCls}
                     value={form.thumbnailUrl || ""}
-                    onChange={e => {
-                      setField("thumbnailUrl", e.target.value);
-                      if (e.target.value) clearThumbnailFile();
-                    }}
+                    onChange={e => { setField("thumbnailUrl", e.target.value); if (e.target.value) clearThumbnailFile(); }}
                     placeholder="https://images.unsplash.com/..."
                   />
                 </div>
               </div>
 
-              {/* Category */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Category" sub="Used for filtering on the Projects page">
-                  <select className={inputCls} value={form.category || ""} onChange={e => setField("category", e.target.value)}>
-                    <option value="">— No Category —</option>
-                    <option value="gripper">Gripper</option>
-                    <option value="3d">3D Design</option>
-                    <option value="simatic">Simatic</option>
-                  </select>
-                </Field>
-              </div>
-
-              {/* Status + Language + Links */}
+              {/* ── Status + Language + Links ── */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Field label="Status">
-                  <select className={inputCls} value={form.status} onChange={e => setField("status", e.target.value as ProjectStatus)}>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                  </select>
+                  <CustomSelect
+                    value={form.status}
+                    onChange={v => setField("status", v as ProjectStatus)}
+                    options={STATUS_OPTIONS}
+                  />
                 </Field>
                 <Field label="Code Language">
-                  <select className={inputCls} value={form.language} onChange={e => setField("language", e.target.value)}>
-                    {LANG_OPTIONS.map(l => <option key={l} value={l}>{l.toUpperCase()}</option>)}
-                  </select>
+                  <CustomSelect
+                    value={form.language}
+                    onChange={v => setField("language", v)}
+                    options={LANG_OPTIONS}
+                  />
                 </Field>
                 <Field label="GitHub URL">
                   <input className={inputCls} value={form.githubUrl} onChange={e => setField("githubUrl", e.target.value)} placeholder="https://github.com/..." />
                 </Field>
                 <Field label="Live / Demo URL">
-                  <input className={inputCls} value={form.liveUrl} onChange={e => setField("liveUrl", e.target.value)} placeholder="https://..." />
+                  <input className={inputCls} value={form.liveUrl ?? ""} onChange={e => setField("liveUrl", e.target.value)} placeholder="https://..." />
                 </Field>
               </div>
 
-              {/* Tags */}
+              {/* ── Tags ── */}
               <Field label="Tags" sub="Press Enter or comma to add a tag">
-                <div className="flex flex-wrap gap-2 p-3 bg-muted/30 border border-border rounded-lg min-h-[48px]">
+                <div className="flex flex-wrap gap-2 p-3 bg-muted/30 border border-border rounded-lg min-h-[48px] focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary/40 transition-all">
                   {form.tags.map(tag => (
                     <span key={tag} className="flex items-center gap-1 text-xs font-mono bg-primary/10 border border-primary/20 text-primary px-2 py-0.5 rounded">
                       {tag}
@@ -499,64 +655,80 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                     value={tagInput}
                     onChange={e => setTagInput(e.target.value)}
                     onKeyDown={handleTag}
-                    placeholder="Add tag..."
+                    placeholder={form.tags.length === 0 ? "Add tag…" : ""}
                     className="bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground/50 flex-1 min-w-24"
                   />
                 </div>
               </Field>
 
+              {/* ── Overview ── */}
               <BilingualField
                 label="Overview"
                 enValue={form.overview}
                 arValue={form.overviewAr}
                 onEnChange={v => setField("overview", v)}
                 onArChange={v => setField("overviewAr", v)}
-                multiline
-                rows={5}
+                multiline rows={5}
                 enPlaceholder="Detailed project overview…"
                 arPlaceholder="نظرة عامة مفصلة…"
               />
 
-              <BilingualField
-                label="Problem"
-                enValue={form.problem}
-                arValue={form.problemAr}
-                onEnChange={v => setField("problem", v)}
-                onArChange={v => setField("problemAr", v)}
-                multiline
-                rows={4}
-                enPlaceholder="What problem does this solve?"
-                arPlaceholder="ما المشكلة التي يحلها؟"
-              />
-
-              <BilingualField
-                label="Solution"
-                enValue={form.solution}
-                arValue={form.solutionAr}
-                onEnChange={v => setField("solution", v)}
-                onArChange={v => setField("solutionAr", v)}
-                multiline
-                rows={4}
-                enPlaceholder="How was it solved?"
-                arPlaceholder="كيف تم حلها؟"
-              />
-
-              {/* Code snippet */}
-              <Field label="Code Snippet">
-                <div className="relative">
-                  <div className="absolute top-2.5 right-3 flex items-center gap-2">
-                    <Code2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs font-mono text-muted-foreground uppercase">{form.language}</span>
+              {/* ── Custom Sections ── */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Custom Sections
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Define your own bilingual content blocks — e.g. "Technical Details", "Process", "Results"
+                    </p>
                   </div>
-                  <textarea
-                    className={`${textareaCls} font-mono text-xs`}
-                    rows={10}
-                    value={form.codeSnippet}
-                    onChange={e => setField("codeSnippet", e.target.value)}
-                    placeholder="// Paste your code snippet here..."
-                  />
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-semibold hover:bg-primary/20 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Section
+                  </button>
                 </div>
-              </Field>
+
+                {form.customSections.length === 0 ? (
+                  <div
+                    className="flex flex-col items-center justify-center gap-3 py-10 rounded-xl border-2 border-dashed border-border text-muted-foreground/50 cursor-pointer hover:border-primary/30 hover:text-muted-foreground transition-all"
+                    onClick={addSection}
+                  >
+                    <Layers className="w-8 h-8" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium">No custom sections yet</p>
+                      <p className="text-xs mt-0.5">Click to add a section with a custom title and bilingual content</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <AnimatePresence>
+                      {form.customSections.map(section => (
+                        <SectionCard
+                          key={section.id}
+                          section={section}
+                          onUpdate={updated => updateSection(section.id, updated)}
+                          onRemove={() => removeSection(section.id)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                    <button
+                      type="button"
+                      onClick={addSection}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-dashed border-border text-muted-foreground/60 hover:border-primary/30 hover:text-primary text-xs font-medium transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add another section
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </motion.div>
           )}
 
@@ -585,13 +757,12 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 </div>
               )}
 
-              {/* File type guide */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {(Object.keys(FILE_TYPE_LABEL) as FileType[]).map(type => {
                   const Icon = FILE_TYPE_ICON[type];
                   const count = currentProject?.files.filter(f => f.type === type).length || 0;
                   return (
-                    <div key={type} className={`p-3 rounded-lg border transition-all ${count > 0 ? "bg-primary/5 border-primary/20" : "bg-muted/20 border-border"}`}>
+                    <div key={type} className={`p-3 rounded-xl border transition-all ${count > 0 ? "bg-primary/5 border-primary/20" : "bg-muted/10 border-border"}`}>
                       <div className="flex items-center justify-between mb-2">
                         <Icon className={`w-4 h-4 ${count > 0 ? "text-primary" : "text-muted-foreground"}`} />
                         <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${count > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{count}</span>
@@ -602,13 +773,12 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 })}
               </div>
 
-              {/* Files list */}
               {currentProject && currentProject.files.length > 0 ? (
                 <div className="space-y-2">
                   {currentProject.files.map(f => {
                     const Icon = FILE_TYPE_ICON[f.type];
                     return (
-                      <div key={f.id} className="flex items-center gap-3 bg-card border border-card-border rounded-xl p-4 group">
+                      <div key={f.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 group hover:border-primary/20 transition-all">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
                           <Icon className="w-5 h-5 text-primary" />
                         </div>
@@ -632,7 +802,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                   })}
                 </div>
               ) : mode === "edit" ? (
-                <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                <div className="text-center py-14 text-muted-foreground border border-dashed border-border rounded-xl">
                   <Upload className="w-8 h-8 mx-auto mb-3 opacity-40" />
                   <p className="text-sm">No files yet. Add your first file.</p>
                 </div>
@@ -642,12 +812,17 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
               <AnimatePresence>
                 {addFileOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                   >
-                    <div className="w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-4">
+                    <motion.div
+                      initial={{ scale: 0.95, y: 8 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.95 }}
+                      className="w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-4"
+                    >
                       <div className="flex items-center justify-between">
                         <h3 className="text-base font-semibold text-foreground">Add File</h3>
                         <button onClick={() => setAddFileOpen(false)} className="text-muted-foreground hover:text-foreground">
@@ -656,11 +831,11 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                       </div>
 
                       <Field label="File Type">
-                        <select className={inputCls} value={fileForm.type} onChange={e => setFileForm(f => ({ ...f, type: e.target.value as FileType }))}>
-                          {(Object.keys(FILE_TYPE_LABEL) as FileType[]).map(t => (
-                            <option key={t} value={t}>{FILE_TYPE_LABEL[t]}</option>
-                          ))}
-                        </select>
+                        <CustomSelect
+                          value={fileForm.type}
+                          onChange={v => setFileForm(f => ({ ...f, type: v as FileType }))}
+                          options={(Object.keys(FILE_TYPE_LABEL) as FileType[]).map(t => ({ value: t, label: FILE_TYPE_LABEL[t] }))}
+                        />
                       </Field>
 
                       <Field label="Upload File">
@@ -686,14 +861,14 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                       </Field>
 
                       <Field label="Description">
-                        <input className={inputCls} value={fileForm.description} onChange={e => setFileForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description of this file..." />
+                        <input className={inputCls} value={fileForm.description} onChange={e => setFileForm(f => ({ ...f, description: e.target.value }))} placeholder="Brief description…" />
                       </Field>
 
                       <div className="flex gap-3 pt-2">
                         <button onClick={() => setAddFileOpen(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:text-foreground transition-all">Cancel</button>
                         <button onClick={submitFile} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold hover:bg-primary/90 transition-all">Add File</button>
                       </div>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -716,7 +891,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
               )}
 
               {mode === "edit" && (
-                <div className="bg-card border border-card-border rounded-xl p-5 space-y-3">
+                <div className="bg-card border border-border rounded-xl p-5 space-y-3">
                   <h3 className="text-sm font-semibold text-foreground">Add Media</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -737,7 +912,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                       className={`${inputCls} flex-1`}
                       value={addMediaUrl}
                       onChange={e => setAddMediaUrl(e.target.value)}
-                      placeholder={addMediaType === "image" ? "https://... (image URL)" : "https://youtube.com/embed/... or similar"}
+                      placeholder={addMediaType === "image" ? "https://... (image URL)" : "https://youtube.com/embed/..."}
                     />
                     <button onClick={submitMedia} className="bg-primary text-primary-foreground px-4 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-all">Add</button>
                   </div>
@@ -750,13 +925,14 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 </div>
               )}
 
-              {/* Media grid */}
               {currentProject && currentProject.media.length > 0 ? (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                   {currentProject.media.map(m => (
-                    <div key={m.id} className="group relative rounded-xl overflow-hidden border border-card-border bg-card aspect-video">
+                    <div key={m.id} className="group relative rounded-xl overflow-hidden border border-border bg-card"
+                      style={{ aspectRatio: "16/9" }}
+                    >
                       {m.type === "image" ? (
-                        <img src={m.url} alt={m.caption} className="w-full h-full object-cover" />
+                        <img src={m.url} alt={m.caption} className="w-full h-full" style={{ objectFit: "cover" }} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-muted">
                           <Film className="w-8 h-8 text-muted-foreground" />
@@ -779,7 +955,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                   ))}
                 </div>
               ) : mode === "edit" ? (
-                <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                <div className="text-center py-14 text-muted-foreground border border-dashed border-border rounded-xl">
                   <Image className="w-8 h-8 mx-auto mb-3 opacity-40" />
                   <p className="text-sm">No media yet. Add images or videos above.</p>
                 </div>
@@ -812,7 +988,6 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 </div>
               )}
 
-              {/* Updates timeline */}
               {currentProject && currentProject.updates.length > 0 ? (
                 <div className="space-y-3 relative">
                   <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
@@ -822,10 +997,9 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                         u.type === "release" ? "bg-chart-2" :
                         u.type === "feature" ? "bg-primary" :
                         u.type === "fix" ? "bg-chart-3" :
-                        u.type === "design" ? "bg-chart-5" :
-                        "bg-muted-foreground"
+                        u.type === "design" ? "bg-chart-5" : "bg-muted-foreground"
                       }`} />
-                      <div className="flex-1 bg-card border border-card-border rounded-xl p-4 min-w-0">
+                      <div className="flex-1 bg-card border border-border rounded-xl p-4 min-w-0 hover:border-primary/20 transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -849,7 +1023,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                   ))}
                 </div>
               ) : mode === "edit" ? (
-                <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                <div className="text-center py-14 text-muted-foreground border border-dashed border-border rounded-xl">
                   <Calendar className="w-8 h-8 mx-auto mb-3 opacity-40" />
                   <p className="text-sm">No updates yet. Add the first milestone.</p>
                 </div>
@@ -864,7 +1038,12 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                   >
-                    <div className="w-full max-w-lg bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-4">
+                    <motion.div
+                      initial={{ scale: 0.95, y: 8 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.95 }}
+                      className="w-full max-w-lg bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-4"
+                    >
                       <div className="flex items-center justify-between">
                         <h3 className="text-base font-semibold text-foreground">Add Update</h3>
                         <button onClick={() => setAddUpdateOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -909,8 +1088,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                           arValue={updateForm.descAr}
                           onEnChange={v => setUpdateForm(f => ({ ...f, desc: v }))}
                           onArChange={v => setUpdateForm(f => ({ ...f, descAr: v }))}
-                          multiline
-                          rows={2}
+                          multiline rows={2}
                           enPlaceholder="What changed?"
                           arPlaceholder="ماذا تغير؟"
                         />
@@ -930,7 +1108,7 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                         <button onClick={() => setAddUpdateOpen(false)} className="flex-1 border border-border rounded-lg py-2 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
                         <button onClick={submitUpdate} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-semibold hover:bg-primary/90">Add Update</button>
                       </div>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -945,55 +1123,42 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
                 <p className="text-xs text-muted-foreground mt-0.5">{currentProject.commits.length} commits · Git-style change log</p>
               </div>
 
-              {/* Branch line + commits */}
-              <div className="font-mono text-xs space-y-0 bg-card border border-card-border rounded-xl overflow-hidden">
-                {/* Header */}
+              <div className="font-mono text-xs space-y-0 bg-card border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
                   <GitCommit className="w-4 h-4 text-primary" />
                   <span className="text-foreground font-semibold">main</span>
                   <span className="text-muted-foreground">·</span>
                   <span className="text-muted-foreground">{currentProject.commits.length} commits</span>
                 </div>
-
-                <div className="divide-y divide-border/50">
-                  {[...currentProject.commits].reverse().map((c, i) => (
-                    <div key={c.hash} className="flex items-start gap-4 px-4 py-3 hover:bg-muted/20 transition-colors group">
-                      {/* Graph line */}
-                      <div className="flex flex-col items-center gap-0 pt-1 shrink-0">
-                        <div className={`w-3 h-3 rounded-full ${COMMIT_TYPE_COLOR[c.type]?.split(" ")[0] || "bg-primary"}`} />
-                        {i < currentProject.commits.length - 1 && (
-                          <div className="w-px h-8 bg-border mt-1" />
-                        )}
-                      </div>
-
-                      {/* Commit info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span className="text-foreground font-medium">{c.message}</span>
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded capitalize ${COMMIT_TYPE_COLOR[c.type] || "bg-primary text-primary-foreground"}`}>
-                            {c.type}
-                          </span>
+                {[...currentProject.commits].reverse().map((c, i) => (
+                  <div
+                    key={c.hash}
+                    className={`flex items-start gap-4 px-4 py-3 group hover:bg-muted/10 transition-colors ${i < currentProject.commits.length - 1 ? "border-b border-border/40" : ""}`}
+                  >
+                    <span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded ${COMMIT_TYPE_COLOR[c.type] ?? "bg-muted text-muted-foreground"}`}>
+                      {c.type.toUpperCase()}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-foreground/90 group-hover:text-foreground transition-colors break-all">{c.message}</span>
+                      {c.fields.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {c.fields.map(f => (
+                            <span key={f} className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded border border-border/50">{f}</span>
+                          ))}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-muted-foreground">
-                          <span className="text-primary">{c.hash}</span>
-                          <span>·</span>
-                          <span>{new Date(c.timestamp).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</span>
-                          <span>·</span>
-                          <span className="text-muted-foreground/60">{new Date(c.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-                        </div>
-                        {c.fields.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {c.fields.map(f => (
-                              <span key={f} className="text-[10px] bg-muted/50 border border-border/50 text-muted-foreground px-1.5 py-0.5 rounded">
-                                {f}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                    <div className="shrink-0 flex items-center gap-3 text-muted-foreground">
+                      <span className="text-primary/80">{c.hash}</span>
+                      <span>{new Date(c.timestamp).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+                {currentProject.commits.length === 0 && (
+                  <div className="px-4 py-8 text-center text-muted-foreground/50">
+                    <p>No commits yet. Save the project to create the first commit.</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

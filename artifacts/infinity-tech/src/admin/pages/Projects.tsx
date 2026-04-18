@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Search, Edit2, Trash2, Eye, Download, FolderOpen,
   CheckCircle2, Circle, Archive, GitCommit, Filter,
-  LayoutGrid, List, Tag, ExternalLink, Github, Globe,
+  LayoutGrid, List, ExternalLink, Github, Globe,
 } from "lucide-react";
 import type { ProjectStatus } from "@/admin/data/types";
 import {
@@ -29,20 +29,13 @@ const STATUS_BG: Record<ProjectStatus, string> = {
   completed: "bg-green-500/10 text-green-400 border-green-500/20",
   archived:  "bg-muted text-muted-foreground border-border",
 };
-const CATEGORY_BG: Record<string, string> = {
-  gripper: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  "3d":    "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  simatic: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-};
 
 type ViewMode = "grid" | "table";
-type CatFilter = "all" | "gripper" | "3d" | "simatic" | "none";
 
 export default function Projects() {
   const { projects, deleteProject, loading, error } = useStore();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
-  const [catFilter, setCatFilter] = useState<CatFilter>("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
@@ -50,11 +43,7 @@ export default function Projects() {
     const q = query.toLowerCase();
     const matchesSearch = !q || p.title.toLowerCase().includes(q) || p.tags.some(t => t.toLowerCase().includes(q));
     const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-    const cat = (p.category ?? "").toLowerCase().trim();
-    const matchesCat =
-      catFilter === "all" ||
-      (catFilter === "none" ? !cat : cat === catFilter);
-    return matchesSearch && matchesStatus && matchesCat;
+    return matchesSearch && matchesStatus;
   });
 
   if (loading) {
@@ -153,27 +142,6 @@ export default function Projects() {
             >{s}</button>
           ))}
         </div>
-
-        {/* Category filter */}
-        <div className="flex gap-1.5 flex-wrap">
-          {(["all", "gripper", "3d", "simatic", "none"] as const).map(c => (
-            <button
-              key={c}
-              onClick={() => setCatFilter(c)}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
-                catFilter === c
-                  ? c === "gripper" ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
-                    : c === "3d"    ? "bg-blue-500/20 text-blue-400 border-blue-500/40"
-                    : c === "simatic" ? "bg-violet-500/20 text-violet-400 border-violet-500/40"
-                    : "bg-primary/10 text-primary border-primary/30"
-                  : "bg-card border-border text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Tag className="w-3 h-3 inline mr-1" />
-              {c === "none" ? "No Cat" : c === "all" ? "All Cats" : c.toUpperCase()}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── TABLE VIEW ─────────────────────────────────────────────────── */}
@@ -192,7 +160,6 @@ export default function Projects() {
                 <thead>
                   <tr className="border-b border-border bg-muted/20">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Category</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Status</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Tags</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Stats</th>
@@ -203,8 +170,6 @@ export default function Projects() {
                 <tbody className="divide-y divide-border">
                   <AnimatePresence>
                     {filtered.map(p => {
-                      const cat = (p.category ?? "").toLowerCase().trim();
-                      const catBg = CATEGORY_BG[cat];
                       const StatusIcon = STATUS_ICON[p.status];
                       return (
                         <motion.tr
@@ -230,17 +195,6 @@ export default function Projects() {
                                 <p className="text-xs text-muted-foreground truncate max-w-[180px]">{p.description}</p>
                               </div>
                             </div>
-                          </td>
-
-                          {/* Category */}
-                          <td className="px-4 py-3 hidden md:table-cell">
-                            {cat && catBg ? (
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border uppercase ${catBg}`}>
-                                {cat}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground/50">—</span>
-                            )}
                           </td>
 
                           {/* Status */}
@@ -325,8 +279,6 @@ export default function Projects() {
               <AnimatePresence>
                 {filtered.map((p, i) => {
                   const StatusIcon = STATUS_ICON[p.status];
-                  const cat = (p.category ?? "").toLowerCase().trim();
-                  const catBg = CATEGORY_BG[cat];
                   return (
                     <motion.div
                       key={p.id}
@@ -336,23 +288,17 @@ export default function Projects() {
                       transition={{ delay: i * 0.04 }}
                       className="bg-card border border-border rounded-xl overflow-hidden hover:border-primary/30 transition-all duration-300 group"
                     >
-                      {/* Thumbnail strip */}
+                      {/* Thumbnail strip — 16:9 */}
                       {p.thumbnailUrl && (
-                        <div className="relative h-32 overflow-hidden bg-muted/20">
+                        <div className="relative w-full overflow-hidden bg-muted/20" style={{ aspectRatio: "16/9" }}>
                           <img
                             src={p.thumbnailUrl}
                             alt={p.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            className="absolute inset-0 w-full h-full group-hover:scale-105 transition-transform duration-500"
+                            style={{ objectFit: "cover" }}
                             loading="lazy"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
-                          {cat && catBg && (
-                            <div className="absolute top-2 left-2">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border uppercase ${catBg}`}>
-                                {cat === "3d" ? "3D" : cat}
-                              </span>
-                            </div>
-                          )}
                         </div>
                       )}
 
@@ -369,11 +315,6 @@ export default function Projects() {
                               <StatusIcon className="w-3 h-3" />
                               {p.status}
                             </span>
-                            {cat && catBg && !p.thumbnailUrl && (
-                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border uppercase ${catBg}`}>
-                                {cat === "3d" ? "3D" : cat}
-                              </span>
-                            )}
                           </div>
                           {/* Action buttons — visible on hover */}
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

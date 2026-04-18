@@ -11,7 +11,6 @@ import Analytics from "@/admin/pages/Analytics";
 import AdminComments from "@/admin/pages/Comments";
 import AdminNotifications from "@/admin/pages/Notifications";
 import SettingsPage from "@/admin/pages/Settings";
-import AdminSkills from "@/admin/pages/Skills";
 
 const AUTH_KEY = "it-admin-auth";
 const DEFAULT_PIN = "admin2024";
@@ -141,7 +140,6 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
           <Route path="/admin/analytics" component={Analytics} />
           <Route path="/admin/comments" component={AdminComments} />
           <Route path="/admin/notifications" component={AdminNotifications} />
-          <Route path="/admin/skills" component={AdminSkills} />
           <Route path="/admin/settings" component={SettingsPage} />
           <Route>
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">

@@ -283,8 +283,8 @@ function ItiPhoneField({ label, error, resetTrigger, onItiReady, onClearError, i
       geoIpLookup: (cb) => {
         fetch("https://ipapi.co/json")
           .then(r => r.json())
-          .then(d => cb(d.country_code || "EG"))
-          .catch(() => cb("EG"));
+          .then(d => cb((d.country_code || "eg").toLowerCase()))
+          .catch(() => cb("eg"));
       },
       separateDialCode: true,
       countryOrder: ["eg", "sa", "ae", "kw", "gb", "us"],
