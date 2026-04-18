@@ -36,7 +36,7 @@ app.use(
       );
       cb(ok ? null : new Error("CORS: origin not allowed"), ok);
     },
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "x-admin-pin", "Authorization"],
     credentials: true,
   })

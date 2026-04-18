@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useStore } from "@/admin/data/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -240,7 +240,61 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
     };
   }
 
+  /** Map a raw DB row (from GET /api/projects/:id) into FormData */
+  function rowToFormData(row: Record<string, any>): FormData {
+    const rawSections = row.custom_sections;
+    const customSections: CustomSection[] = Array.isArray(rawSections) ? rawSections : [];
+    return {
+      title: row.title_en ?? "",
+      titleAr: row.title_ar ?? "",
+      description: row.description_en ?? "",
+      descriptionAr: row.description_ar ?? "",
+      overview: row.overview_en ?? "",
+      overviewAr: row.overview_ar ?? "",
+      tags: row.tags ?? [],
+      status: (row.status ?? "active") as ProjectStatus,
+      language: row.language ?? "c",
+      githubUrl: row.github_url ?? "",
+      liveUrl: row.live_link ?? "",
+      category: row.category ?? "",
+      thumbnailUrl: row.thumbnail_url ?? "",
+      videoUrl: row.video_url ?? "",
+      customSections,
+      timeline: Array.isArray(row.timeline) ? row.timeline : [],
+      files: Array.isArray(row.files) ? row.files : [],
+      media: Array.isArray(row.media) ? row.media : [],
+      updates: Array.isArray(row.updates) ? row.updates : [],
+    };
+  }
+
+  const [formReady, setFormReady] = useState(mode === "create");
   const [form, setForm] = useState<FormData>(existing ? toFormData(existing) : EMPTY_PROJECT);
+
+  /**
+   * On mount in edit mode: always fetch the latest project data from the API.
+   * This ensures the form is populated even when navigating directly to the URL
+   * (bypassing the store's lazy-loaded list) and always shows fresh DB data.
+   */
+  useEffect(() => {
+    if (mode !== "edit" || !projectId) return;
+
+    const pin = localStorage.getItem("it-admin-pin") || "admin2024";
+    fetch(`/api/projects/${projectId}`, {
+      headers: { "x-admin-pin": pin, "Content-Type": "application/json" },
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(({ project: row }) => {
+        if (row) {
+          setForm(rowToFormData(row));
+        }
+      })
+      .catch(err => console.error("[ProjectEditor] failed to fetch project:", err))
+      .finally(() => setFormReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, mode]);
   const [tab, setTab] = useState<Tab>("content");
   const [tagInput, setTagInput] = useState("");
   const [saved, setSaved] = useState(false);
@@ -515,6 +569,18 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
   function removeSection(id: string) {
     setField("customSections", form.customSections.filter(s => s.id !== id));
+  }
+
+  // Show loading state while fetching project data from the API
+  if (!formReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm">Loading project…</p>
+        </div>
+      </div>
+    );
   }
 
   return (

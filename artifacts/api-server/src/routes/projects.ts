@@ -74,19 +74,30 @@ router.post("/projects", requireAdmin, async (req, res) => {
 
     body = await autoTranslateFields(body);
 
-    const [row] = await db.insert(projects).values({
+    // Ensure JSONB fields are proper objects (never undefined)
+    const payload = {
       ...body,
-      tags: body.tags || [],
-      status: body.status || "active",
-    }).returning();
+      tags: body.tags ?? [],
+      status: body.status ?? "active",
+      custom_sections: body.custom_sections ?? null,
+      timeline: body.timeline ?? null,
+      files: body.files ?? null,
+      media: body.media ?? null,
+      updates: body.updates ?? null,
+    };
 
+    const [row] = await db.insert(projects).values(payload).returning();
+
+    if (!row) throw new Error("INSERT returned no row — check DB constraints");
+    console.log(`[DB] Created project ${row.id}`);
     res.status(201).json({ project: row });
   } catch (err: any) {
+    console.error("[DB] POST /projects error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT /api/projects/:id — admin only (full replace alias for PATCH)
+// PUT /api/projects/:id — admin only (full replace)
 router.put("/projects/:id", requireAdmin, async (req, res) => {
   try {
     let body = sanitizeBody(req.body) as any;
@@ -94,13 +105,17 @@ router.put("/projects/:id", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "No valid fields to update" });
     }
     body = await autoTranslateFields(body);
+
     const [row] = await db.update(projects)
       .set({ ...body, updated_at: new Date() })
       .where(eq(projects.id, req.params.id))
       .returning();
+
     if (!row) return res.status(404).json({ error: "Project not found" });
+    console.log(`[DB] PUT project ${req.params.id} — fields: ${Object.keys(body).join(", ")}`);
     res.json({ project: row });
   } catch (err: any) {
+    console.error(`[DB] PUT /projects/${req.params.id} error:`, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -121,8 +136,10 @@ router.patch("/projects/:id", requireAdmin, async (req, res) => {
       .returning();
 
     if (!row) return res.status(404).json({ error: "Project not found" });
+    console.log(`[DB] PATCH project ${req.params.id} — fields: ${Object.keys(body).join(", ")}`);
     res.json({ project: row });
   } catch (err: any) {
+    console.error(`[DB] PATCH /projects/${req.params.id} error:`, err);
     res.status(500).json({ error: err.message });
   }
 });
