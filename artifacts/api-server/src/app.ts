@@ -93,12 +93,38 @@ app.use(
   })
 );
 
+// ── API root info (GET /) — prevents confusing 404 noise in proxy logs ────────
+app.get("/", (_req: Request, res: Response) => {
+  res.json({
+    name: "Infinity Tech API",
+    version: "1.0.0",
+    status: "ok",
+    docs: "/api/health",
+    endpoints: [
+      "GET  /api/health",
+      "GET  /api/projects",
+      "POST /api/projects",
+      "GET  /api/projects/:id",
+      "PUT  /api/projects/:id",
+      "PATCH /api/projects/:id",
+      "DELETE /api/projects/:id",
+    ],
+  });
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
+// Log every successful API hit so failures are easy to distinguish in the console
+app.use("/api", (req: Request, _res: Response, next: NextFunction) => {
+  console.log(`[ROUTE] ${req.method} /api${req.path}`);
+  next();
+});
+
 app.use("/api", router);
 
 // ── 404 catch-all ─────────────────────────────────────────────────────────────
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: "Not found" });
+app.use((req: Request, res: Response) => {
+  console.warn(`[404] ${req.method} ${req.path} — no route matched`);
+  res.status(404).json({ error: "Not found", path: req.path });
 });
 
 // ── Global error handler ──────────────────────────────────────────────────────
