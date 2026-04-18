@@ -274,11 +274,19 @@ router.post("/projects/:id/translate", requireAdmin, async (req, res) => {
 
 // DELETE /api/projects/:id — admin only
 router.delete("/projects/:id", requireAdmin, async (req, res) => {
+  // ── MANUAL DELETE — only reachable by clicking "Delete Project" in the admin UI ──
+  // This route requires the x-admin-pin header; it is never called automatically.
+  console.warn(`[DELETE /projects/${req.params.id}] ⚠  Manual deletion requested — origin: ${req.headers.origin ?? "direct call"}`);
   try {
     const result = await db.delete(projects).where(eq(projects.id, req.params.id)).returning();
-    if (result.length === 0) return res.status(404).json({ error: "Project not found" });
+    if (result.length === 0) {
+      console.warn(`[DELETE /projects/${req.params.id}] ✗ Project not found`);
+      return res.status(404).json({ error: "Project not found" });
+    }
+    console.log(`[DELETE /projects/${req.params.id}] ✓ Project permanently deleted`);
     res.json({ success: true });
   } catch (err: any) {
+    console.error(`[DELETE /projects/${req.params.id}] ✗ Error:`, err);
     res.status(500).json({ error: err.message });
   }
 });

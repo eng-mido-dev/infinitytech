@@ -577,33 +577,59 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
       setVideoUploading(false);
     }
 
-    // STEP C — All media URLs are resolved; write to the database
-    console.log("[Save] ▶ Sending to database", {
-      thumbnailUrl: finalForm.thumbnailUrl,
-      videoUrl: finalForm.videoUrl,
+    // STEP C — All media URLs are resolved; print the exact object going to the server
+    console.log("[Save] ▶ FINAL PAYLOAD being sent to server:", {
+      title: finalForm.title,
+      titleAr: finalForm.titleAr,
+      description: finalForm.description,
+      status: finalForm.status,
+      tags: finalForm.tags,
+      thumbnailUrl: finalForm.thumbnailUrl || "(empty)",
+      videoUrl: finalForm.videoUrl || "(empty)",
+      category: finalForm.category,
+      githubUrl: finalForm.githubUrl,
+      liveUrl: finalForm.liveUrl,
       customSectionsCount: finalForm.customSections?.length ?? 0,
+      timelineCount: finalForm.timeline?.length ?? 0,
     });
+
+    // Abort here if a required field is still missing — surface the error before
+    // hitting the network so the user sees a clear message rather than a 400.
+    if (!finalForm.title && !finalForm.titleAr) {
+      setSaveError("Title (English or Arabic) is required before saving.");
+      setIsBusy(false);
+      return;
+    }
+
     try {
+      let savedId: string | null = null;
+
       if (mode === "create") {
+        console.log("[Save] ▶ Calling createProject — waiting for server 201…");
         const p = await createProject(finalForm);
-        // STEP D — server confirmed the INSERT; project is now in the DB
-        console.log("[Save] ✓ Project created — id:", p.id);
+        savedId = p.id;
+        // STEP D — server confirmed INSERT with RETURNING *; the row is in the DB
+        console.log("[Save] ✓ Server responded 201 — project id:", p.id);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
         alert("Project Saved Successfully!");
-        navigate(`/admin/projects/${p.id}`);
+        // Navigate only AFTER alert is dismissed and server has already confirmed 201
+        navigate(`/admin/projects/${savedId}`);
+
       } else if (projectId) {
+        console.log("[Save] ▶ Calling updateProject — waiting for server 200…");
         await updateProject(projectId, finalForm, commitMsg || undefined);
-        // STEP D — server confirmed the UPDATE; changes are persisted
-        console.log("[Save] ✓ Project updated — id:", projectId);
+        // STEP D — server confirmed PATCH with RETURNING *; changes are persisted
+        console.log("[Save] ✓ Server responded 200 — project id:", projectId);
         setCommitMsg("");
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
         alert("Project Saved Successfully!");
       }
+
     } catch (err: any) {
       const msg = err.message ?? "Save failed";
-      console.error("[Save] ✗ Database write failed:", err);
+      console.error("[Save] ✗ Database write failed — full error:", err);
       setSaveError(msg);
       alert(`Save Failed: ${msg}`);
     } finally {
@@ -686,6 +712,53 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
 
   return (
     <div className="min-h-screen">
+
+      {/* ── Full-screen save/upload overlay ──────────────────────────────────
+          Rendered whenever isBusy is true (covers uploads + DB write).
+          pointer-events covers everything so no interaction slips through. */}
+      {isBusy && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
+          style={{ background: "rgba(10,16,25,0.88)", backdropFilter: "blur(10px)", pointerEvents: "all" }}
+        >
+          <Loader2 className="w-14 h-14 animate-spin text-primary" />
+
+          <div className="text-center space-y-1">
+            <p className="text-xl font-bold text-foreground tracking-tight">
+              {thumbnailUploading
+                ? "Uploading Image…"
+                : videoUploading
+                ? "Uploading Video…"
+                : saving
+                ? "Saving to Database…"
+                : "Uploading Assets…"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Please wait — do not close or refresh this page
+            </p>
+          </div>
+
+          {/* Progress bar — shown while a file is uploading */}
+          {(thumbnailUploading || videoUploading) && (
+            <div className="w-56">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-200"
+                  style={{ width: `${thumbnailUploading ? thumbnailUploadProgress : videoUploadProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1.5">
+                {thumbnailUploading ? thumbnailUploadProgress : videoUploadProgress}% complete
+              </p>
+            </div>
+          )}
+
+          {saving && (
+            <p className="text-xs text-muted-foreground animate-pulse">Writing to database…</p>
+          )}
+        </div>
+      )}
+
       {/* ── Top bar ── */}
       <div className="sticky top-0 z-10 border-b border-border px-6 py-3 flex items-center gap-4"
         style={{ background: "rgba(10,16,25,0.92)", backdropFilter: "blur(16px)" }}
