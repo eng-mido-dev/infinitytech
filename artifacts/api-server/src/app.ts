@@ -60,8 +60,11 @@ const writeLimiter = rateLimit({
 });
 
 app.use("/api", apiLimiter);
-app.use("/api/projects", (req: Request, res: Response, next: NextFunction) => {
-  if (["POST", "PATCH", "DELETE"].includes(req.method)) return writeLimiter(req, res, next);
+app.use("/api/projects", (req: Request, res: Response, next: NextFunction): void => {
+  if (["POST", "PATCH", "DELETE"].includes(req.method)) {
+    writeLimiter(req, res, next);
+    return;
+  }
   next();
 });
 

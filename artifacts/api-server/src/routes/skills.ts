@@ -37,7 +37,8 @@ router.post("/skills", requireAdmin, async (req, res) => {
     };
 
     if (!name_en?.trim()) {
-      return res.status(400).json({ error: "name_en is required" });
+      res.status(400).json({ error: "name_en is required" });
+      return;
     }
 
     const [row] = await db.insert(skills).values({
@@ -70,7 +71,10 @@ router.patch("/skills/:id", requireAdmin, async (req, res) => {
       .where(eq(skills.id, req.params.id))
       .returning();
 
-    if (!row) return res.status(404).json({ error: "Skill not found" });
+    if (!row) {
+      res.status(404).json({ error: "Skill not found" });
+      return;
+    }
     res.json({ skill: row });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -85,7 +89,10 @@ router.delete("/skills/:id", requireAdmin, async (req, res) => {
       .where(eq(skills.id, req.params.id))
       .returning({ id: skills.id });
 
-    if (!row) return res.status(404).json({ error: "Skill not found" });
+    if (!row) {
+      res.status(404).json({ error: "Skill not found" });
+      return;
+    }
     res.json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

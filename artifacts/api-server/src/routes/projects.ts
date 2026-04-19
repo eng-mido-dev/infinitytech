@@ -123,7 +123,10 @@ router.get("/projects/:id", async (req, res) => {
       db.select().from(projects).where(eq(projects.id, req.params.id)),
       db.select().from(projectStats).where(eq(projectStats.projectId, req.params.id)),
     ]);
-    if (!row) return res.status(404).json({ error: "Project not found" });
+    if (!row) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
 
     res.json({
       project: {
@@ -315,7 +318,8 @@ router.put("/projects/:id", requireAdmin, async (req, res) => {
   try {
     let body = sanitizeBody(req.body) as any;
     if (Object.keys(body).length === 0) {
-      return res.status(400).json({ error: "No valid fields to update" });
+      res.status(400).json({ error: "No valid fields to update" });
+      return;
     }
     body = await autoTranslateFields(body);
 
@@ -324,7 +328,10 @@ router.put("/projects/:id", requireAdmin, async (req, res) => {
       .where(eq(projects.id, req.params.id))
       .returning();
 
-    if (!row) return res.status(404).json({ error: "Project not found" });
+    if (!row) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
     console.log(`[DB] PUT project ${req.params.id} — fields: ${Object.keys(body).join(", ")}`);
     res.json({ project: row });
   } catch (err: any) {
@@ -348,7 +355,8 @@ router.patch("/projects/:id", requireAdmin, async (req, res) => {
     let body = sanitizeBody(req.body) as any;
     if (Object.keys(body).length === 0) {
       console.warn(`[PATCH /projects/${id}] ✗ No writable fields in body`);
-      return res.status(400).json({ error: "No valid fields to update" });
+      res.status(400).json({ error: "No valid fields to update" });
+      return;
     }
 
     console.log(`[PATCH /projects/${id}] ▶ Running auto-translate…`);
@@ -363,7 +371,8 @@ router.patch("/projects/:id", requireAdmin, async (req, res) => {
 
     if (!row) {
       console.warn(`[PATCH /projects/${id}] ✗ Project not found`);
-      return res.status(404).json({ error: "Project not found" });
+      res.status(404).json({ error: "Project not found" });
+      return;
     }
 
     console.log(`[PATCH /projects/${id}] ✓ Updated — id=${row.id}`);
@@ -383,7 +392,10 @@ router.patch("/projects/:id", requireAdmin, async (req, res) => {
 router.post("/projects/:id/translate", requireAdmin, async (req, res) => {
   try {
     const [existing] = await db.select().from(projects).where(eq(projects.id, req.params.id));
-    if (!existing) return res.status(404).json({ error: "Project not found" });
+    if (!existing) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
 
     const fields = {
       title_en: existing.title_en,
@@ -420,7 +432,8 @@ router.delete("/projects/:id", requireAdmin, async (req, res) => {
     const result = await db.delete(projects).where(eq(projects.id, req.params.id)).returning();
     if (result.length === 0) {
       console.warn(`[DELETE /projects/${req.params.id}] ✗ Project not found`);
-      return res.status(404).json({ error: "Project not found" });
+      res.status(404).json({ error: "Project not found" });
+      return;
     }
     console.log(`[DELETE /projects/${req.params.id}] ✓ Project permanently deleted`);
     res.json({ success: true });
@@ -436,7 +449,10 @@ router.get("/projects/:id/updates", async (req, res) => {
     const [row] = await db.select({ updates: projects.updates })
       .from(projects)
       .where(eq(projects.id, req.params.id));
-    if (!row) return res.status(404).json({ error: "Project not found" });
+    if (!row) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
     res.json({ updates: (row.updates as any[]) || [] });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -448,13 +464,17 @@ router.post("/projects/:id/updates", requireAdmin, async (req, res) => {
   try {
     const { message } = req.body as { message?: string };
     if (!message?.trim()) {
-      return res.status(400).json({ error: "message is required" });
+      res.status(400).json({ error: "message is required" });
+      return;
     }
 
     const [existing] = await db.select({ updates: projects.updates })
       .from(projects)
       .where(eq(projects.id, req.params.id));
-    if (!existing) return res.status(404).json({ error: "Project not found" });
+    if (!existing) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
 
     const newEntry = { message: message.trim(), date: new Date().toISOString() };
     const currentUpdates = (existing.updates as any[]) || [];
