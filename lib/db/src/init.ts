@@ -88,6 +88,17 @@ export async function initDatabase(): Promise<void> {
       );
     `);
 
+    // ── subscriptions (JSONB backup — stores the raw PushSubscription object) ─
+    // Complements push_subscriptions; used by the /api/subscribe alias endpoint.
+    // ON CONFLICT (data) DO NOTHING deduplicates on the full subscription JSON.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id         SERIAL      PRIMARY KEY,
+        data       JSONB       NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     // ── contact_messages ──────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS contact_messages (

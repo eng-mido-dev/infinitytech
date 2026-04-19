@@ -1,6 +1,6 @@
 import { Router } from "express";
 import webpush from "web-push";
-import { db, pushSubscriptions } from "@workspace/db";
+import { db, pool, pushSubscriptions } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
@@ -43,6 +43,12 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 
 // ── GET /api/push/vapid-public-key ────────────────────────────────────────────
 router.get("/push/vapid-public-key", (_req, res) => {
+  if (!VAPID_PUBLIC) return res.status(503).json({ error: "Push not configured" });
+  return res.json({ publicKey: VAPID_PUBLIC });
+});
+
+// ── GET /api/vapid-public-key — alias (matches user-spec endpoint name) ────────
+router.get("/vapid-public-key", (_req, res) => {
   if (!VAPID_PUBLIC) return res.status(503).json({ error: "Push not configured" });
   return res.json({ publicKey: VAPID_PUBLIC });
 });
@@ -156,6 +162,51 @@ router.delete("/push/subscribe", async (req, res) => {
   }
 });
 
+// ── POST /api/subscribe — alias endpoint (matches user-spec URL) ──────────────
+// Accepts the raw browser PushSubscription JSON {endpoint, expirationTime, keys}.
+// Saves normalized data to push_subscriptions (used for sending) AND saves the
+// full subscription object as JSONB to the subscriptions table (for auditing).
+// Uses ON CONFLICT (endpoint) DO UPDATE so re-subscribing after key rotation works.
+router.post("/subscribe", async (req, res) => {
+  const pin = req.headers["x-admin-pin"] as string;
+  const validPin = process.env.ADMIN_PIN || "admin2024";
+  if (pin !== validPin) return res.status(401).json({ error: "Unauthorized" });
+
+  const { endpoint, keys } = req.body ?? {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    return res.status(400).json({ error: "Invalid subscription object" });
+  }
+
+  try {
+    // 1. Save normalized subscription for push sending
+    await db
+      .insert(pushSubscriptions)
+      .values({
+        endpoint,
+        p256dh:     keys.p256dh,
+        auth:       keys.auth,
+        user_agent: (req.headers["user-agent"] ?? "").slice(0, 512),
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: { p256dh: keys.p256dh, auth: keys.auth },
+      });
+
+    // 2. Also save raw subscription JSON to the JSONB subscriptions table
+    const rawData = JSON.stringify({ endpoint, expirationTime: req.body.expirationTime ?? null, keys });
+    await pool.query(
+      `INSERT INTO subscriptions (data) VALUES ($1::jsonb) ON CONFLICT (data) DO NOTHING`,
+      [rawData],
+    );
+
+    logger.info({ endpoint: endpoint.slice(0, 60) }, "Push subscription saved via /api/subscribe");
+    return res.json({ ok: true });
+  } catch (err: any) {
+    logger.error({ err }, "Failed to save push subscription via /api/subscribe");
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/push/test — fire a test notification to all subscriptions ────────
 router.post("/push/test", async (req, res) => {
   const pin = req.headers["x-admin-pin"] as string;
@@ -182,10 +233,10 @@ router.post("/push/test", async (req, res) => {
       sent++;
     } catch (err: any) {
       logger.error({ err, endpoint: sub.endpoint.slice(0, 60) }, "Push send failed");
-      // 410 Gone = subscription expired, clean it up
-      if (err.statusCode === 410) {
+      // 410 Gone or 404 Not Found = subscription expired/invalid, clean it up
+      if (err.statusCode === 410 || err.statusCode === 404) {
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
-        logger.info("Removed expired push subscription");
+        logger.info({ statusCode: err.statusCode }, "Removed expired/invalid push subscription");
       }
     }
   }
