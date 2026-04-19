@@ -70,7 +70,11 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-VAPID_PUBLIC_KEY = "BP_XoFiiYBiDHDGbqnwUQpk2gOLpwfnk1o1dpBiVT8mQS5LHnlEQuSLUCglZHzYoLjPdpJ3e7WWhpQRBNUaOQ0M"
+VAPID_PUBLIC_KEY = "BJou-ulP6o7O4BcEzo437zjksva0_kbkMCP6n8FqABr43CjcsXyg42Cb45qky7Ay91-eCsIHrxI17GGIXZ9En_U"
 VAPID_EMAIL = "mailto:admin.infinity.tech@gmail.com"
 CLOUDINARY_CLOUD_NAME = "dvwzkyc4k"
 CLOUDINARY_API_KEY = "248518966117675"
+CLOUDINARY_API_SECRET = "zOJXyzSijSDxNaCjXLwuBxHxs1I"
+JWT_TOKEN = ""
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_ZhMPvmpjVi38@ep-frosty-fog-a4u0lvrb-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+VAPID_PRIVATE_KEY = "2qKKnwgTTe0XXpO4wjNWz0SS_Dfqr-MUQL2qntzSmzY"

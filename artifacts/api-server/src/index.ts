@@ -4,7 +4,6 @@ import { initDatabase } from "@workspace/db";
 
 // ── Environment variable validation ──────────────────────────────────────────
 const REQUIRED_ENV: string[] = [
-  "DATABASE_URL",
   "CLOUDINARY_CLOUD_NAME",
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
@@ -14,6 +13,10 @@ for (const key of REQUIRED_ENV) {
   if (!process.env[key] || process.env[key] === key) {
     console.error(`[Startup] ⚠  Environment variable ${key} is missing or is a placeholder`);
   }
+}
+
+if (!process.env.NEON_DATABASE_URL && !process.env.DATABASE_URL) {
+  console.error("[Startup] ⚠  Neither NEON_DATABASE_URL nor DATABASE_URL is set");
 }
 
 // ── Port ─────────────────────────────────────────────────────────────────────
