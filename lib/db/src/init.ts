@@ -88,6 +88,19 @@ export async function initDatabase(): Promise<void> {
       );
     `);
 
+    // ── contact_messages ──────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id         BIGSERIAL   PRIMARY KEY,
+        name       VARCHAR(100) NOT NULL,
+        email      VARCHAR(200),
+        phone      VARCHAR(30),
+        subject    VARCHAR(200) NOT NULL,
+        message    TEXT        NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     // ── Engineering file columns — added in v2; safe to run on existing DBs ──
     // ALTER TABLE ... ADD COLUMN IF NOT EXISTS is idempotent — no-op if column exists.
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS model_3d_url TEXT;`);

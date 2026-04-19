@@ -37,7 +37,7 @@ router.post("/contact", async (req, res) => {
       body:  total === 1
         ? "You have 1 unread message"
         : `You have ${total} unread messages`,
-      icon:  "/favicon.svg",
+      icon:  "/icon-192.png",
       tag:   "new-contact",
       url:   "/admin-infinity",
     } as any).catch(() => {});

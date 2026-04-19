@@ -446,8 +446,13 @@ export default function ProjectEditor({ mode, projectId }: ProjectEditorProps) {
         if (xhr.status >= 200 && xhr.status < 300) {
           const data = JSON.parse(xhr.responseText) as { secure_url: string; resource_type: string };
           let url = data.secure_url;
-          // Inject auto-quality / auto-format optimisation transforms for media
-          if (url.includes("cloudinary.com") && url.includes("/upload/")) {
+          // Inject quality/format transforms ONLY for image and video — raw files
+          // (GLB, STEP, PDF, XLSX) don't support Cloudinary transformations and
+          // the URL will 404 if we add them.
+          const isMediaUrl = url.includes("cloudinary.com") && (
+            url.includes("/image/upload/") || url.includes("/video/upload/")
+          );
+          if (isMediaUrl) {
             url = url.replace("/upload/", "/upload/f_auto,q_auto/");
           }
           console.log("[Upload] ✓ Cloudinary upload success:", url);

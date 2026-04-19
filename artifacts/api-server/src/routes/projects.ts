@@ -264,7 +264,7 @@ router.post("/projects", requireAdmin, (req: any, res: any) => {
       ...body,
       tags:            Array.isArray(body.tags) ? body.tags : [],
       status:          body.status ?? "active",
-      custom_sections: body.custom_sections ?? {},
+      custom_sections: body.custom_sections ?? [],
       timeline:        body.timeline   ?? null,
       files:           body.files      ?? null,
       media:           body.media      ?? null,
