@@ -32,6 +32,10 @@ args = "Start application"
 task = "workflow.run"
 args = "API Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Mockup Sandbox"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -55,6 +59,19 @@ outputType = "console"
 task = "shell.exec"
 args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
 waitForPort = 8080
+
+[[workflows.workflow]]
+name = "Mockup Sandbox"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8000 BASE_PATH=/__mockup pnpm --filter @workspace/mockup-sandbox run dev"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "console"
+isCanvasWorkflow = true
 
 [agent]
 stack = "PNPM_WORKSPACE"
