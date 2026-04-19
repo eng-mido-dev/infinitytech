@@ -76,7 +76,7 @@ router.get("/test-push", async (req: any, res: any) => {
   const payload = JSON.stringify({
     title: "🔔 Push Test — Infinity Tech",
     body:  "VAPID keys are working! Notifications are live.",
-    icon:  "/favicon.svg",
+    icon:  "/icon-192.png",
     tag:   "vapid-test",
     url:   "/admin-infinity",
   });
@@ -168,7 +168,7 @@ router.post("/push/test", async (req, res) => {
   const payload = JSON.stringify({
     title: "🔔 Push Test",
     body: "Web Push is working correctly!",
-    icon: "/favicon.svg",
+    icon: "/icon-192.png",
     tag: "push-test",
   });
 
@@ -205,7 +205,7 @@ export async function broadcastPush(payload: { title: string; body: string; icon
     return;
   }
 
-  const json = JSON.stringify({ icon: "/favicon.svg", ...payload });
+  const json = JSON.stringify({ icon: "/icon-192.png", ...payload });
 
   for (const sub of subs) {
     try {
